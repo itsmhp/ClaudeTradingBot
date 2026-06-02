@@ -1,0 +1,627 @@
+{
+  "_meta": {
+    "name": "ClaudeTradingBot Rules Configuration",
+    "version": "1.0.0",
+    "broker": "Exness",
+    "updated": "2025-01-15",
+    "description": "Trading rules configuration that Claude AI reads before every chart analysis. Defines watchlist, strategy parameters, risk rules, session filters, and per-instrument specifications for Exness broker."
+  },
+
+  "watchlist": {
+    "commodities": ["XAUUSD"],
+    "crypto": ["BTCUSD"],
+    "forex_majors": ["EURUSD", "GBPUSD", "USDJPY"],
+    "indices": ["NAS100", "US30"]
+  },
+
+  "instruments": {
+    "XAUUSD": {
+      "display_name": "Gold vs USD",
+      "category": "commodities",
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["london", "new_york"],
+      "spread_cap_points": 35,
+      "typical_spread_points": 25,
+      "min_move_pips": 3.0,
+      "pip_size": 0.01,
+      "digits": 2,
+      "contract_size": 100,
+      "min_lot": 0.01,
+      "max_lot": 50.0,
+      "lot_step": 0.01,
+      "magic_number": 234001,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 30,
+      "scalp_settings": {
+        "timeframes": ["M5", "M15"],
+        "tp_pips": 5.0,
+        "sl_pips": 3.0,
+        "max_open_positions": 2,
+        "min_session_overlap": true,
+        "trailing_after_pips": 3.0
+      },
+      "swing_settings": {
+        "timeframes": ["H1", "H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 3.0,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 1.5,
+        "move_sl_to_be_after_tp1": true
+      },
+      "notes": "Gold is highly volatile during NY session. Avoid scalping during thin Asian liquidity. Best setups at London open and NY open. Spread widens significantly during news events."
+    },
+
+    "BTCUSD": {
+      "display_name": "Bitcoin vs USD",
+      "category": "crypto",
+      "preferred_modes": ["swing"],
+      "preferred_sessions": ["any"],
+      "spread_cap_points": 1500,
+      "typical_spread_points": 800,
+      "min_move_pips": 50.0,
+      "pip_size": 0.01,
+      "digits": 2,
+      "contract_size": 1,
+      "min_lot": 0.01,
+      "max_lot": 10.0,
+      "lot_step": 0.01,
+      "magic_number": 234002,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 15,
+      "scalp_settings": {
+        "timeframes": ["M15"],
+        "tp_pips": 100.0,
+        "sl_pips": 60.0,
+        "max_open_positions": 1,
+        "min_session_overlap": false,
+        "trailing_after_pips": 80.0,
+        "note": "Scalping BTC is risky due to wide spreads. Only in high-momentum moves."
+      },
+      "swing_settings": {
+        "timeframes": ["H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 4.0,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 2.0,
+        "move_sl_to_be_after_tp1": true,
+        "reduce_size_weekends": true,
+        "weekend_size_multiplier": 0.5
+      },
+      "notes": "BTC trades 24/7 but liquidity drops on weekends. Prefer swing entries on H4/D1. Reduce position size by 50% for weekend holds. Correlates with NAS100 during risk-on."
+    },
+
+    "EURUSD": {
+      "display_name": "Euro vs USD",
+      "category": "forex_majors",
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["london", "new_york", "london_ny_overlap"],
+      "spread_cap_points": 15,
+      "typical_spread_points": 6,
+      "min_move_pips": 0.8,
+      "pip_size": 0.0001,
+      "digits": 5,
+      "contract_size": 100000,
+      "min_lot": 0.01,
+      "max_lot": 200.0,
+      "lot_step": 0.01,
+      "magic_number": 234003,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 30,
+      "scalp_settings": {
+        "timeframes": ["M1", "M5", "M15"],
+        "tp_pips": 1.0,
+        "sl_pips": 0.7,
+        "max_open_positions": 2,
+        "min_session_overlap": true,
+        "trailing_after_pips": 0.8
+      },
+      "swing_settings": {
+        "timeframes": ["H1", "H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 3.0,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 1.2,
+        "move_sl_to_be_after_tp1": true
+      },
+      "notes": "Tightest spread pair on Exness. Best for scalping during London/NY overlap (13:00-16:00 UTC). Avoid Asian session scalps. Heavily affected by ECB and Fed decisions."
+    },
+
+    "GBPUSD": {
+      "display_name": "British Pound vs USD",
+      "category": "forex_majors",
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["london", "new_york"],
+      "spread_cap_points": 18,
+      "typical_spread_points": 8,
+      "min_move_pips": 1.0,
+      "pip_size": 0.0001,
+      "digits": 5,
+      "contract_size": 100000,
+      "min_lot": 0.01,
+      "max_lot": 200.0,
+      "lot_step": 0.01,
+      "magic_number": 234004,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 30,
+      "scalp_settings": {
+        "timeframes": ["M5", "M15"],
+        "tp_pips": 1.5,
+        "sl_pips": 1.0,
+        "max_open_positions": 2,
+        "min_session_overlap": true,
+        "trailing_after_pips": 1.0
+      },
+      "swing_settings": {
+        "timeframes": ["H1", "H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 3.0,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 1.3,
+        "move_sl_to_be_after_tp1": true
+      },
+      "notes": "More volatile than EURUSD. Excellent intraday moves during London session. Avoid scalping in Asian session. BOE rate decisions cause massive spikes — always avoid."
+    },
+
+    "USDJPY": {
+      "display_name": "US Dollar vs Japanese Yen",
+      "category": "forex_majors",
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["asian", "london", "new_york"],
+      "spread_cap_points": 15,
+      "typical_spread_points": 7,
+      "min_move_pips": 1.0,
+      "pip_size": 0.01,
+      "digits": 3,
+      "contract_size": 100000,
+      "min_lot": 0.01,
+      "max_lot": 200.0,
+      "lot_step": 0.01,
+      "magic_number": 234005,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 30,
+      "scalp_settings": {
+        "timeframes": ["M5", "M15"],
+        "tp_pips": 1.5,
+        "sl_pips": 1.0,
+        "max_open_positions": 2,
+        "min_session_overlap": false,
+        "trailing_after_pips": 1.0
+      },
+      "swing_settings": {
+        "timeframes": ["H1", "H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 3.5,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 1.2,
+        "move_sl_to_be_after_tp1": true
+      },
+      "notes": "Active across all sessions due to JPY involvement. Asian session provides good scalp setups when BOJ is active. Highly sensitive to US Treasury yields. BOJ intervention risk above 155.00 and below 140.00."
+    },
+
+    "NAS100": {
+      "display_name": "Nasdaq 100 Index",
+      "category": "indices",
+      "preferred_modes": ["swing"],
+      "preferred_sessions": ["new_york"],
+      "spread_cap_points": 200,
+      "typical_spread_points": 80,
+      "min_move_pips": 20.0,
+      "pip_size": 0.1,
+      "digits": 1,
+      "contract_size": 1,
+      "min_lot": 0.01,
+      "max_lot": 50.0,
+      "lot_step": 0.01,
+      "magic_number": 234006,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 45,
+      "scalp_settings": {
+        "timeframes": ["M15"],
+        "tp_pips": 40.0,
+        "sl_pips": 25.0,
+        "max_open_positions": 1,
+        "min_session_overlap": false,
+        "trailing_after_pips": 30.0,
+        "note": "Scalping NAS100 only recommended during first 2 hours of NY session with confirmed momentum."
+      },
+      "swing_settings": {
+        "timeframes": ["H1", "H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 3.0,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 1.5,
+        "move_sl_to_be_after_tp1": true,
+        "avoid_friday_afternoon": true
+      },
+      "notes": "Highly correlated with tech earnings and FOMC. Best setups on H4 structure breaks. Avoid entering during earnings season volatility. Spread widens significantly outside US hours. Gap risk on Monday opens."
+    },
+
+    "US30": {
+      "display_name": "Dow Jones 30 Index",
+      "category": "indices",
+      "preferred_modes": ["swing"],
+      "preferred_sessions": ["new_york"],
+      "spread_cap_points": 300,
+      "typical_spread_points": 120,
+      "min_move_pips": 25.0,
+      "pip_size": 0.1,
+      "digits": 1,
+      "contract_size": 1,
+      "min_lot": 0.01,
+      "max_lot": 50.0,
+      "lot_step": 0.01,
+      "magic_number": 234007,
+      "avoid_minutes_before_news": 30,
+      "avoid_minutes_after_news": 45,
+      "scalp_settings": {
+        "timeframes": ["M15"],
+        "tp_pips": 50.0,
+        "sl_pips": 30.0,
+        "max_open_positions": 1,
+        "min_session_overlap": false,
+        "trailing_after_pips": 35.0,
+        "note": "Scalping US30 only during high-momentum NY open. Wider stops needed due to volatility."
+      },
+      "swing_settings": {
+        "timeframes": ["H1", "H4", "D1"],
+        "tp1_rr": 2.0,
+        "tp2_rr": 3.0,
+        "max_open_positions": 1,
+        "use_atr_for_sl": true,
+        "atr_multiplier_sl": 1.5,
+        "move_sl_to_be_after_tp1": true,
+        "avoid_friday_afternoon": true
+      },
+      "notes": "Less volatile than NAS100 but wider spreads on Exness. Best for swing trades on D1. Affected by industrial and financial sector earnings. Similar news sensitivity to NAS100."
+    }
+  },
+
+  "global_rules": {
+    "max_concurrent_trades": 3,
+    "max_daily_loss_pct": 3.0,
+    "default_risk_per_trade_pct": 1.0,
+    "default_min_rr": 2.0,
+    "min_confidence_to_execute": 65,
+    "min_confidence_to_alert": 55,
+    "only_pending_orders": true,
+    "allowed_order_types": ["BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"],
+    "never_use_market_orders": true,
+    "move_sl_to_breakeven_after_tp1": true,
+    "partial_close_at_tp1_pct": 50,
+    "max_spread_multiplier_vs_typical": 2.0,
+    "max_slippage_points": 20,
+    "order_expiry": "GTC"
+  },
+
+  "sessions": {
+    "asian": {
+      "name": "Asian / Tokyo Session",
+      "start_utc": "00:00",
+      "end_utc": "08:00",
+      "characteristics": "Low volatility for forex, moderate for JPY pairs. Good for range trading.",
+      "best_pairs": ["USDJPY"]
+    },
+    "london": {
+      "name": "London / European Session",
+      "start_utc": "07:00",
+      "end_utc": "16:00",
+      "characteristics": "High volatility, strong trends. Best for breakout and momentum trades.",
+      "best_pairs": ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY"]
+    },
+    "new_york": {
+      "name": "New York / US Session",
+      "start_utc": "13:00",
+      "end_utc": "21:00",
+      "characteristics": "Highest volume period. News-driven moves. Excellent for all strategies.",
+      "best_pairs": ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "NAS100", "US30"]
+    },
+    "london_ny_overlap": {
+      "name": "London-New York Overlap",
+      "start_utc": "13:00",
+      "end_utc": "16:00",
+      "characteristics": "Peak liquidity and volatility. Tightest spreads. Best window for scalping.",
+      "best_pairs": ["EURUSD", "GBPUSD", "XAUUSD"]
+    },
+    "dead_zone": {
+      "name": "Low Liquidity Period",
+      "start_utc": "21:00",
+      "end_utc": "00:00",
+      "characteristics": "Wide spreads, erratic price action. NO SCALPING. Swing entries only if setup is strong.",
+      "avoid_scalping": true
+    }
+  },
+
+  "news_blackout_events": [
+    {
+      "event": "US CPI",
+      "impact": "high",
+      "frequency": "monthly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 30,
+      "affected_pairs": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "NAS100", "US30", "BTCUSD"]
+    },
+    {
+      "event": "FOMC Interest Rate Decision",
+      "impact": "extreme",
+      "frequency": "6-weekly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 60,
+      "affected_pairs": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "NAS100", "US30", "BTCUSD"]
+    },
+    {
+      "event": "FOMC Minutes",
+      "impact": "high",
+      "frequency": "6-weekly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 30,
+      "affected_pairs": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "NAS100", "US30"]
+    },
+    {
+      "event": "US Non-Farm Payrolls (NFP)",
+      "impact": "extreme",
+      "frequency": "monthly (first Friday)",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 45,
+      "affected_pairs": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "NAS100", "US30", "BTCUSD"]
+    },
+    {
+      "event": "US GDP",
+      "impact": "high",
+      "frequency": "quarterly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 15,
+      "affected_pairs": ["XAUUSD", "EURUSD", "USDJPY", "NAS100", "US30"]
+    },
+    {
+      "event": "BOE Rate Decision",
+      "impact": "high",
+      "frequency": "6-weekly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 30,
+      "affected_pairs": ["GBPUSD", "XAUUSD"]
+    },
+    {
+      "event": "ECB Rate Decision",
+      "impact": "high",
+      "frequency": "6-weekly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 30,
+      "affected_pairs": ["EURUSD", "GBPUSD", "XAUUSD"]
+    },
+    {
+      "event": "US PCE (Core)",
+      "impact": "high",
+      "frequency": "monthly",
+      "avoid_minutes_before": 15,
+      "avoid_minutes_after": 15,
+      "affected_pairs": ["XAUUSD", "EURUSD", "USDJPY", "NAS100", "US30"]
+    },
+    {
+      "event": "US Retail Sales",
+      "impact": "medium",
+      "frequency": "monthly",
+      "avoid_minutes_before": 15,
+      "avoid_minutes_after": 15,
+      "affected_pairs": ["EURUSD", "USDJPY", "NAS100", "US30"]
+    },
+    {
+      "event": "BOJ Rate Decision",
+      "impact": "high",
+      "frequency": "6-weekly",
+      "avoid_minutes_before": 30,
+      "avoid_minutes_after": 30,
+      "affected_pairs": ["USDJPY"]
+    }
+  ],
+
+  "strategy_definitions": {
+    "scalping": {
+      "description": "Short-term intraday trades targeting 5-20 pip moves on M1-M15 timeframes",
+      "timeframes": ["M1", "M5", "M15"],
+      "entry_criteria": {
+        "ema_crossover": {
+          "fast_ema": 9,
+          "slow_ema": 21,
+          "confirmation_timeframe": "one_above_entry",
+          "description": "EMA 9 crosses EMA 21. BUY when fast crosses above slow, SELL when fast crosses below."
+        },
+        "rsi_filter": {
+          "period": 14,
+          "buy_range": [40, 65],
+          "sell_range": [35, 60],
+          "description": "RSI must be in range. Not overbought for buys, not oversold for sells."
+        },
+        "support_resistance": {
+          "proximity_pips": 10,
+          "lookback_bars": 50,
+          "description": "Price must be within proximity of a recent S/R level on the timeframe above entry."
+        },
+        "trend_alignment": {
+          "ema_period": 50,
+          "check_timeframe": "one_above_entry",
+          "description": "Price must be above EMA 50 for buys, below for sells, on the higher timeframe."
+        },
+        "spread_check": {
+          "must_be_below_cap": true,
+          "description": "Current spread must be below the instrument spread_cap_points."
+        },
+        "session_check": {
+          "must_be_in_preferred_session": true,
+          "description": "Current time must fall within a preferred session for the instrument."
+        }
+      },
+      "exit_criteria": {
+        "primary": "fixed_pips_or_atr",
+        "atr_tp_multiplier": 1.5,
+        "atr_sl_multiplier": 1.0,
+        "trailing_stop_after_rr": 1.0,
+        "trailing_step_rr": 0.5,
+        "max_hold_time_minutes": 120,
+        "close_before_session_end_minutes": 15
+      },
+      "constraints": {
+        "max_total_scalp_positions": 3,
+        "no_scalp_during_news": true,
+        "no_scalp_in_dead_zone": true,
+        "min_bars_between_signals": 5
+      }
+    },
+
+    "swing": {
+      "description": "Medium-term positional trades targeting 2-5R moves on H1-D1 timeframes",
+      "timeframes": ["H1", "H4", "D1"],
+      "entry_criteria": {
+        "structure_break": {
+          "type": "higher_high_or_lower_low",
+          "timeframe": "H4_or_D1",
+          "description": "BUY: price creates a higher high (BOS up). SELL: price creates a lower low (BOS down)."
+        },
+        "ema_position": {
+          "fast_ema": 50,
+          "slow_ema": 200,
+          "condition": "price_above_fast_above_slow_for_buy",
+          "check_timeframe": "D1",
+          "description": "For BUY: price > EMA50 > EMA200. For SELL: price < EMA50 < EMA200."
+        },
+        "rsi_confirmation": {
+          "period": 14,
+          "buy_range": [45, 70],
+          "sell_range": [30, 55],
+          "check_timeframe": "H4",
+          "description": "RSI confirms momentum direction without being at extremes."
+        },
+        "pullback_entry": {
+          "buy_levels": ["50_ema", "618_fib"],
+          "sell_levels": ["50_ema", "382_fib"],
+          "description": "BUY LIMIT at 50 EMA or 61.8% fib. SELL LIMIT at 50 EMA or 38.2% fib of last impulse."
+        },
+        "volume_confirmation": {
+          "above_average_period": 20,
+          "required": true,
+          "description": "Breakout/breakdown candle volume must exceed 20-period average."
+        }
+      },
+      "entry_order_types": {
+        "pullback_to_support": "BUY_LIMIT",
+        "pullback_to_resistance": "SELL_LIMIT",
+        "breakout_above_resistance": "BUY_STOP",
+        "breakdown_below_support": "SELL_STOP"
+      },
+      "exit_criteria": {
+        "stop_loss": {
+          "method": "swing_structure_plus_atr",
+          "description": "SL below last swing low (BUY) or above last swing high (SELL), plus ATR buffer.",
+          "atr_buffer_multiplier": 0.5
+        },
+        "take_profit_1": {
+          "method": "fixed_rr",
+          "rr_ratio": 2.0,
+          "action": "close_50_percent",
+          "then": "move_sl_to_breakeven"
+        },
+        "take_profit_2": {
+          "method": "structure_or_rr",
+          "rr_ratio": 3.0,
+          "alternative": "next_major_structure_level",
+          "action": "close_remaining"
+        }
+      },
+      "constraints": {
+        "max_total_swing_positions": 3,
+        "max_per_pair": 1,
+        "no_new_entries_friday_after_utc": "20:00",
+        "no_entries_during_news": true,
+        "min_bars_since_last_signal": 10,
+        "btcusd_weekend_size_reduction": 0.5
+      }
+    }
+  },
+
+  "indicators": {
+    "required": [
+      {"name": "RSI", "period": 14, "usage": "Momentum confirmation and overbought/oversold filter"},
+      {"name": "EMA", "period": 9, "usage": "Fast EMA for scalp crossover signals"},
+      {"name": "EMA", "period": 21, "usage": "Slow EMA for scalp crossover signals"},
+      {"name": "EMA", "period": 50, "usage": "Trend direction and dynamic support/resistance"},
+      {"name": "EMA", "period": 200, "usage": "Major trend filter — above = bullish bias, below = bearish"},
+      {"name": "ATR", "period": 14, "usage": "Volatility measurement for dynamic SL/TP placement"},
+      {"name": "MACD", "fast": 12, "slow": 26, "signal": 9, "usage": "Momentum direction and divergence detection"},
+      {"name": "Volume", "period": 20, "usage": "Volume average for breakout confirmation"}
+    ],
+    "optional": [
+      {"name": "Fibonacci Retracement", "usage": "Pullback entry zones (38.2%, 50%, 61.8%)"},
+      {"name": "Bollinger Bands", "period": 20, "deviation": 2, "usage": "Volatility squeeze detection"},
+      {"name": "VWAP", "usage": "Intraday fair value reference for scalping"}
+    ]
+  },
+
+  "bias_criteria": {
+    "bullish": {
+      "conditions": [
+        "Price is above the 50 EMA on D1",
+        "50 EMA is above 200 EMA on D1 (golden cross alignment)",
+        "RSI(14) is between 45-70 on the analysis timeframe",
+        "Market structure shows higher highs and higher lows on H4/D1",
+        "MACD histogram is positive or crossing above zero"
+      ],
+      "entry_preference": "BUY_LIMIT at pullback zones or BUY_STOP on breakouts"
+    },
+    "bearish": {
+      "conditions": [
+        "Price is below the 50 EMA on D1",
+        "50 EMA is below 200 EMA on D1 (death cross alignment)",
+        "RSI(14) is between 30-55 on the analysis timeframe",
+        "Market structure shows lower highs and lower lows on H4/D1",
+        "MACD histogram is negative or crossing below zero"
+      ],
+      "entry_preference": "SELL_LIMIT at pullback zones or SELL_STOP on breakdowns"
+    },
+    "neutral": {
+      "conditions": [
+        "Price is chopping around the 50 EMA with no clear direction",
+        "RSI(14) is between 40-60 (no momentum)",
+        "No clear market structure — sideways range",
+        "50 EMA and 200 EMA are converging (flat)",
+        "MACD histogram is near zero with small oscillations"
+      ],
+      "action": "NO_TRADE — wait for structure break or clear bias to develop"
+    }
+  },
+
+  "claude_instructions": {
+    "analysis_approach": [
+      "1. Identify the current market structure (trending or ranging) on D1 first",
+      "2. Determine bias using the bias_criteria above",
+      "3. If bullish or bearish, look for entry setups on H4 (swing) or M5/M15 (scalp)",
+      "4. Validate all entry criteria for the chosen strategy before generating a signal",
+      "5. Calculate exact entry, SL, TP1, TP2 prices",
+      "6. Verify R:R ratio meets minimum (2.0)",
+      "7. Check spread is below cap for the instrument",
+      "8. Confirm session is appropriate for the instrument and strategy",
+      "9. Check no upcoming news events within blackout window",
+      "10. Assign confidence level (0-100) based on how many criteria align"
+    ],
+    "confidence_guide": {
+      "90-100": "All criteria perfectly aligned, strong structure, multiple confluences",
+      "75-89": "Most criteria aligned, clear setup, minor concern (e.g., slightly wide spread)",
+      "65-74": "Setup is valid but not ideal — one or two criteria are borderline",
+      "55-64": "Weak setup — log as alert but do NOT execute automatically",
+      "below_55": "Do not generate signal — return NO_TRADE with reasoning"
+    },
+    "output_format": "Always respond with valid JSON matching the TradeSignal schema. If no setup exists, return {\"signal\": \"NO_TRADE\", \"reasoning\": \"explanation\"}",
+    "mandatory_checks_before_signal": [
+      "Is the spread below the cap? If not -> NO_TRADE",
+      "Is R:R >= 2.0? If not -> adjust or NO_TRADE",
+      "Is confidence >= 55? If not -> NO_TRADE",
+      "Are we in a news blackout? If yes -> NO_TRADE",
+      "Are we in the correct session? If not -> NO_TRADE (for session-restricted pairs)",
+      "Are we at max positions? If yes -> NO_TRADE"
+    ]
+  }
+}

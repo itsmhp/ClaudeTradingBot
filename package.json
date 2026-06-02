@@ -1,0 +1,37 @@
+{
+  "name": "claude-trading-bot-mcp",
+  "version": "1.0.0",
+  "description": "MCP server component for ClaudeTradingBot — bridges Claude AI to TradingView Desktop via Chrome DevTools Protocol",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "install-mcp": "cd tradingview-mcp && npm install",
+    "launch-tradingview-win": "start \"\" \"%LOCALAPPDATA%\\TradingView\\TradingView.exe\" --remote-debugging-port=9222",
+    "launch-tradingview-mac": "open -a TradingView --args --remote-debugging-port=9222",
+    "launch-tradingview": "node scripts/launch-tradingview.js",
+    "health-check": "node scripts/health-check.js",
+    "setup": "npm install && npm run install-mcp"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.6.0",
+    "ws": "^8.18.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "tradingview",
+    "mcp",
+    "claude",
+    "trading",
+    "mt5",
+    "cdp"
+  ],
+  "author": "ClaudeTradingBot",
+  "license": "UNLICENSED"
+}
