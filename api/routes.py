@@ -5,12 +5,14 @@ FastAPI router — all HTTP + WebSocket endpoints for ClaudeTradingBot.
 
 Phases included:
   Phase 1: /status /signals /trades /execute /pause /resume /performance /health
-  Phase 2: /ws  (WebSocket), /screenshot (upload), /dashboard (static)
+  Phase 2: /ws  (WebSocket), /screenshot, /dashboard
   Phase 3: /backtest/* (run, result, compare, all-pairs, optimize, monte-carlo)
+  Phase 4: /accounts/* (list, add, delete, status, aggregated, connect, disconnect, copy-performance)
 """
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +22,7 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
+    Header,
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
@@ -27,7 +30,7 @@ from fastapi import (
 from loguru import logger
 from pydantic import BaseModel
 
-# ── Internal imports (guarded for partial-init environments) ─────────────────
+# ── Internal imports ─────────────────────────────────────────────────────────
 try:
     from api.ws_manager import ws_manager
 except ImportError:
@@ -35,21 +38,16 @@ except ImportError:
 
 try:
     from database.db import get_db
-    from database.queries import (
-        get_all_signals,
-        get_all_trades,
-        get_performance_summary,
-    )
+    from database.queries import get_all_signals, get_all_trades, get_performance_summary
 except ImportError:
     get_db = None  # type: ignore[assignment]
     get_all_signals = get_all_trades = get_performance_summary = None  # type: ignore
 
-# ── Backtesting imports (Phase 3) ────────────────────────────────────────────
+# ── Phase 3: backtesting ─────────────────────────────────────────────────────
 _backtest_engine = None
 _data_loader     = None
 
 def _get_backtest_engine():
-    """Lazy-load BacktestEngine — avoids MT5 import at startup."""
     global _backtest_engine, _data_loader
     if _backtest_engine is None:
         try:
@@ -61,14 +59,54 @@ def _get_backtest_engine():
             logger.warning(f"[Routes] BacktestEngine unavailable: {exc}")
     return _backtest_engine
 
-# ── In-memory job store for background tasks ─────────────────────────────────
+# ── Phase 4: multi-account ───────────────────────────────────────────────────
+_account_registry = None
+_account_manager  = None
+_copy_engine      = None
+
+def _get_account_registry():
+    global _account_registry
+    if _account_registry is None:
+        try:
+            from multi_account.account_registry import AccountRegistry
+            _account_registry = AccountRegistry(db_session=None)
+        except Exception as exc:
+            logger.warning(f"[Routes] AccountRegistry unavailable: {exc}")
+    return _account_registry
+
+def _get_account_manager():
+    global _account_manager
+    if _account_manager is None:
+        reg = _get_account_registry()
+        if reg:
+            try:
+                from multi_account.account_manager import AccountManager
+                _account_manager = AccountManager(reg)
+            except Exception as exc:
+                logger.warning(f"[Routes] AccountManager unavailable: {exc}")
+    return _account_manager
+
+def _get_copy_engine():
+    global _copy_engine
+    if _copy_engine is None:
+        reg = _get_account_registry()
+        mgr = _get_account_manager()
+        if reg and mgr:
+            try:
+                from multi_account.copy_engine import CopyEngine
+                _copy_engine = CopyEngine(mgr, reg)
+            except Exception as exc:
+                logger.warning(f"[Routes] CopyEngine unavailable: {exc}")
+    return _copy_engine
+
+# ── In-memory job store ──────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
 
 router = APIRouter()
 
-# ════════════════════════════════════════════════════════════════
-# Pydantic schemas for request bodies
-# ════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# Pydantic schemas
+# ══════════════════════════════════════════════════════════════════════════════
 
 class ExecuteRequest(BaseModel):
     symbol: str
@@ -105,19 +143,44 @@ class MonteCarloRequest(BaseModel):
     init_cash: float = 10_000.0
 
 
+class AddAccountRequest(BaseModel):
+    account_id: str
+    label: str
+    login: int
+    password: str
+    server: str
+    broker: str = "Exness"
+    is_master: bool = False
+    risk_per_trade_pct: float = 1.0
+    lot_size_multiplier: float = 1.0
+    copy_delay_seconds: int = 0
+    max_positions: int = 5
+    magic_number_offset: int = 0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Auth dependency for sensitive account endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+def require_bot_token(x_bot_token: Optional[str] = Header(default=None)):
+    expected = os.getenv("BOT_API_TOKEN", "")
+    if not expected:
+        return  # No token configured — open access (dev mode)
+    if x_bot_token != expected:
+        raise HTTPException(403, "Invalid or missing X-Bot-Token header")
+
+
 # ════════════════════════════════════════════════════════════════
 # PHASE 1 — Core endpoints
 # ════════════════════════════════════════════════════════════════
 
 @router.get("/health")
 async def health_check():
-    """Service health check."""
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @router.get("/status")
 async def get_status():
-    """Return bot status: mode, uptime, active pairs, positions."""
     try:
         from main import app_state  # type: ignore[import]
         return app_state
@@ -133,7 +196,6 @@ async def get_status():
 
 @router.get("/signals")
 async def get_signals(limit: int = 50):
-    """Return latest trade signals from database."""
     if get_all_signals is None or get_db is None:
         return {"signals": [], "count": 0}
     async for db in get_db():
@@ -143,7 +205,6 @@ async def get_signals(limit: int = 50):
 
 @router.get("/trades")
 async def get_trades(limit: int = 50):
-    """Return executed trades from database."""
     if get_all_trades is None or get_db is None:
         return {"trades": [], "count": 0}
     async for db in get_db():
@@ -153,7 +214,6 @@ async def get_trades(limit: int = 50):
 
 @router.post("/execute")
 async def manual_execute(req: ExecuteRequest):
-    """Manually trigger a trade execution (AUTO_EXECUTE mode required)."""
     logger.info(f"[Routes] Manual execute: {req.symbol} {req.direction}")
     return {
         "status": "queued",
@@ -165,26 +225,22 @@ async def manual_execute(req: ExecuteRequest):
 
 @router.post("/pause")
 async def pause_bot():
-    """Pause the signal processing loop."""
     logger.warning("[Routes] Bot paused via API")
     return {"status": "paused", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @router.post("/resume")
 async def resume_bot():
-    """Resume the signal processing loop."""
     logger.info("[Routes] Bot resumed via API")
     return {"status": "running", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @router.get("/performance")
 async def get_performance(days: int = 30):
-    """Return performance summary for the last N days."""
     if get_performance_summary is None or get_db is None:
         return {"message": "Database not available", "days": days}
     async for db in get_db():
-        summary = get_performance_summary(db, days=days)
-        return summary
+        return get_performance_summary(db, days=days)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -193,7 +249,6 @@ async def get_performance(days: int = 30):
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint — streams real-time events to the dashboard."""
     if ws_manager is None:
         await websocket.close(code=1011)
         return
@@ -208,12 +263,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @router.post("/screenshot")
 async def upload_screenshot():
-    """Placeholder — screenshot upload endpoint (Phase 2)."""
     return {"status": "ok"}
 
 
 # ════════════════════════════════════════════════════════════════
-# PHASE 3 — Backtesting endpoints
+# PHASE 3 — Backtesting
 # ════════════════════════════════════════════════════════════════
 
 @router.get("/backtest/run")
@@ -225,15 +279,9 @@ async def backtest_run(
     count: int = 5000,
     init_cash: float = 10_000.0,
 ):
-    """Start a backtest job in the background.
-
-    Returns a job_id immediately.  Poll ``GET /backtest/result/{job_id}``
-    to retrieve results when complete.
-    """
     engine = _get_backtest_engine()
     if engine is None:
         raise HTTPException(503, "Backtesting engine not available")
-
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"status": "running", "result": None}
 
@@ -253,7 +301,6 @@ async def backtest_run(
 
 @router.get("/backtest/result/{job_id}")
 async def backtest_result(job_id: str):
-    """Poll for backtest job result."""
     if job_id not in _jobs:
         raise HTTPException(404, f"Job {job_id} not found")
     return _jobs[job_id]
@@ -261,7 +308,6 @@ async def backtest_result(job_id: str):
 
 @router.get("/backtest/compare")
 async def backtest_compare(symbol: str = "XAUUSD", init_cash: float = 10_000.0):
-    """Run both swing and scalping backtests side-by-side for a symbol."""
     engine = _get_backtest_engine()
     if engine is None:
         raise HTTPException(503, "Backtesting engine not available")
@@ -270,7 +316,6 @@ async def backtest_compare(symbol: str = "XAUUSD", init_cash: float = 10_000.0):
 
 @router.get("/backtest/all-pairs")
 async def backtest_all_pairs(strategy: str = "swing", init_cash: float = 10_000.0):
-    """Run backtests for all watchlist pairs, sorted by net P&L."""
     engine = _get_backtest_engine()
     if engine is None:
         raise HTTPException(503, "Backtesting engine not available")
@@ -279,13 +324,10 @@ async def backtest_all_pairs(strategy: str = "swing", init_cash: float = 10_000.
 
 @router.post("/backtest/optimize")
 async def backtest_optimize(req: OptimizeRequest, background_tasks: BackgroundTasks):
-    """Start parameter optimization job in the background."""
     engine = _get_backtest_engine()
     if engine is None:
         raise HTTPException(503, "Backtesting engine not available")
-
     from backtesting.optimizer import StrategyOptimizer
-
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"status": "running", "result": None}
 
@@ -306,20 +348,104 @@ async def backtest_optimize(req: OptimizeRequest, background_tasks: BackgroundTa
 
 @router.post("/backtest/monte-carlo")
 async def backtest_monte_carlo(req: MonteCarloRequest):
-    """Run full backtest then Monte Carlo simulation."""
     engine = _get_backtest_engine()
     if engine is None:
         raise HTTPException(503, "Backtesting engine not available")
-
     from backtesting.monte_carlo import MonteCarloSimulator
-
     try:
         stats = engine.run_swing_backtest(req.symbol, init_cash=req.init_cash)
         sim = MonteCarloSimulator(n_simulations=req.n_simulations)
         mc_result = sim.simulate_from_backtest(stats, req.init_cash)
-        return {
-            "backtest_stats": stats,
-            "monte_carlo": mc_result,
-        }
+        return {"backtest_stats": stats, "monte_carlo": mc_result}
     except Exception as exc:
         raise HTTPException(500, str(exc))
+
+
+# ════════════════════════════════════════════════════════════════
+# PHASE 4 — Multi-Account / Copy Trading
+# ════════════════════════════════════════════════════════════════
+
+@router.get("/accounts")
+async def list_accounts():
+    """List all MT5 accounts (passwords masked)."""
+    reg = _get_account_registry()
+    if reg is None:
+        raise HTTPException(503, "AccountRegistry not available")
+    accounts = reg.list_accounts(mask_passwords=True)
+    return {"accounts": [a.model_dump() for a in accounts], "count": len(accounts)}
+
+
+@router.post("/accounts", dependencies=[Depends(require_bot_token)])
+async def add_account(req: AddAccountRequest):
+    """Add a new MT5 account.  Requires X-Bot-Token header."""
+    reg = _get_account_registry()
+    if reg is None:
+        raise HTTPException(503, "AccountRegistry not available")
+    from multi_account.account_registry import MT5Account
+    account = MT5Account(**req.model_dump())
+    account_id = reg.add_account(account)
+    return {"status": "added", "account_id": account_id}
+
+
+@router.delete("/accounts/{account_id}", dependencies=[Depends(require_bot_token)])
+async def deactivate_account(account_id: str):
+    """Deactivate an account (soft delete).  Requires X-Bot-Token header."""
+    reg = _get_account_registry()
+    if reg is None:
+        raise HTTPException(503, "AccountRegistry not available")
+    reg.deactivate_account(account_id)
+    return {"status": "deactivated", "account_id": account_id}
+
+
+@router.get("/accounts/aggregated")
+async def accounts_aggregated():
+    """Return aggregated equity, positions, and P&L across all accounts."""
+    mgr = _get_account_manager()
+    if mgr is None:
+        raise HTTPException(503, "AccountManager not available")
+    return mgr.get_aggregated_status()
+
+
+@router.get("/accounts/{account_id}/status")
+async def account_status(account_id: str):
+    """Return equity, positions, daily P&L for a single account."""
+    mgr = _get_account_manager()
+    if mgr is None:
+        raise HTTPException(503, "AccountManager not available")
+    if not mgr.is_connected(account_id):
+        raise HTTPException(404, f"Account {account_id} is not connected")
+    try:
+        bridge = mgr.get_bridge(account_id)
+        info = bridge.get_account_info()
+        return {"account_id": account_id, "info": info}
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+
+@router.post("/accounts/{account_id}/connect")
+async def connect_account(account_id: str):
+    """Connect a specific account to MT5."""
+    mgr = _get_account_manager()
+    if mgr is None:
+        raise HTTPException(503, "AccountManager not available")
+    success = mgr.connect_account(account_id)
+    return {"account_id": account_id, "connected": success}
+
+
+@router.post("/accounts/{account_id}/disconnect")
+async def disconnect_account(account_id: str):
+    """Disconnect a specific account from MT5."""
+    mgr = _get_account_manager()
+    if mgr is None:
+        raise HTTPException(503, "AccountManager not available")
+    mgr.disconnect_account(account_id)
+    return {"account_id": account_id, "connected": False}
+
+
+@router.get("/accounts/copy-performance")
+async def copy_performance():
+    """Return master vs follower copy trading performance comparison."""
+    ce = _get_copy_engine()
+    if ce is None:
+        raise HTTPException(503, "CopyEngine not available")
+    return ce.get_copy_performance()
