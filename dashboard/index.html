@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ClaudeTradingBot Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#0f1117;--surface:#1a1d27;--surface2:#23273a;
+      --accent:#6c63ff;--accent2:#00d4aa;--warn:#f59e0b;
+      --danger:#ef4444;--text:#e2e8f0;--muted:#64748b;
+      --green:#22c55e;--red:#ef4444;--amber:#f59e0b;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;display:flex;height:100vh;overflow:hidden;}
+
+    /* ── Sidebar ──────────────────────────────────────── */
+    .sidebar{width:220px;background:var(--surface);display:flex;flex-direction:column;padding:1rem 0;flex-shrink:0;}
+    .sidebar-logo{padding:0.5rem 1.5rem 1.5rem;font-size:1.1rem;font-weight:700;color:var(--accent);}
+    .sidebar-logo span{color:var(--accent2);}
+    .nav-item{padding:0.75rem 1.5rem;cursor:pointer;transition:background 0.2s;display:flex;align-items:center;gap:0.75rem;font-size:0.9rem;color:var(--muted);border-left:3px solid transparent;}
+    .nav-item:hover{background:var(--surface2);color:var(--text);}
+    .nav-item.active{background:var(--surface2);color:var(--accent);border-left-color:var(--accent);}
+    .sidebar-footer{margin-top:auto;padding:1rem 1.5rem;font-size:0.75rem;color:var(--muted);}
+
+    /* ── Main content ─────────────────────────────────── */
+    .main{flex:1;overflow-y:auto;padding:1.5rem;}
+    .section{display:none;}
+    .section.active{display:block;}
+    h2{font-size:1.3rem;margin-bottom:1.25rem;color:var(--text);}
+
+    /* ── Cards ────────────────────────────────────────── */
+    .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;}
+    .card{background:var(--surface);border-radius:10px;padding:1.1rem 1.25rem;}
+    .card-label{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+    .card-value{font-size:1.5rem;font-weight:700;margin-top:0.4rem;}
+    .card-sub{font-size:0.75rem;color:var(--muted);margin-top:0.2rem;}
+
+    /* ── Tables ───────────────────────────────────────── */
+    .table-wrap{background:var(--surface);border-radius:10px;overflow:hidden;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th{background:var(--surface2);padding:0.75rem 1rem;text-align:left;font-weight:600;color:var(--muted);text-transform:uppercase;font-size:0.7rem;letter-spacing:.05em;}
+    td{padding:0.75rem 1rem;border-bottom:1px solid var(--surface2);}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:rgba(255,255,255,.02);}
+
+    /* ── Badges ───────────────────────────────────────── */
+    .badge{display:inline-block;padding:.2em .6em;border-radius:4px;font-size:.75rem;font-weight:600;}
+    .badge-green{background:rgba(34,197,94,.15);color:var(--green);}
+    .badge-red{background:rgba(239,68,68,.15);color:var(--red);}
+    .badge-amber{background:rgba(245,158,11,.15);color:var(--amber);}
+    .badge-blue{background:rgba(108,99,255,.15);color:var(--accent);}
+    .badge-teal{background:rgba(0,212,170,.15);color:var(--accent2);}
+
+    /* ── Buttons ──────────────────────────────────────── */
+    .btn{padding:.5rem 1.1rem;border:none;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:600;transition:opacity .2s;}
+    .btn-primary{background:var(--accent);color:#fff;}
+    .btn-teal{background:var(--accent2);color:#000;}
+    .btn-danger{background:var(--danger);color:#fff;}
+    .btn:hover{opacity:.85;}
+    .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* ── Status dot ───────────────────────────────────── */
+    .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;}
+    .dot-green{background:var(--green);box-shadow:0 0 6px var(--green);}
+    .dot-red{background:var(--red);}
+    .dot-amber{background:var(--amber);animation:pulse 1.5s infinite;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+    /* ── WS status bar ────────────────────────────────── */
+    .ws-bar{background:var(--surface);border-radius:8px;padding:.5rem 1rem;margin-bottom:1.25rem;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;}
+
+    /* ── Chart containers ─────────────────────────────── */
+    .chart-box{background:var(--surface);border-radius:10px;padding:1.25rem;margin-bottom:1.5rem;}
+    .chart-box canvas{max-height:300px;}
+
+    /* ── Backtest controls ────────────────────────────── */
+    .bt-controls{background:var(--surface);border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;}
+    .bt-controls label{display:flex;flex-direction:column;gap:.35rem;font-size:.8rem;color:var(--muted);}
+    .bt-controls select,.bt-controls input{background:var(--surface2);color:var(--text);border:1px solid var(--surface2);border-radius:6px;padding:.45rem .75rem;font-size:.85rem;}
+    .bt-progress{background:var(--surface);border-radius:10px;padding:1.25rem;text-align:center;color:var(--muted);display:none;}
+    .bt-results{display:none;}
+
+    /* ── Monte Carlo fan ──────────────────────────────── */
+    .mc-box{background:var(--surface);border-radius:10px;padding:1.25rem;margin-top:1.25rem;display:none;}
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">Claude<span>TradingBot</span></div>
+  <div class="nav-item active" onclick="showSection('dashboard',this)">📊 Dashboard</div>
+  <div class="nav-item" onclick="showSection('signals',this)">📡 Signals</div>
+  <div class="nav-item" onclick="showSection('trades',this)">💼 Trades</div>
+  <div class="nav-item" onclick="showSection('performance',this)">📈 Performance</div>
+  <div class="nav-item" onclick="showSection('settings',this)">⚙️ Settings</div>
+  <div class="nav-item" onclick="showSection('backtesting',this)">🔬 Backtesting</div>
+  <div class="sidebar-footer" id="ws-footer">WS: —</div>
+</nav>
+
+<!-- ══════════════════ MAIN ══════════════════════ -->
+<main class="main">
+
+  <!-- WS status bar -->
+  <div class="ws-bar"><span class="dot dot-amber" id="ws-dot"></span><span id="ws-label">Connecting…</span></div>
+
+  <!-- ─── 1. Dashboard ─────────────────────────── -->
+  <section class="section active" id="section-dashboard">
+    <h2>Overview</h2>
+    <div class="card-grid">
+      <div class="card"><div class="card-label">Bot Mode</div><div class="card-value" id="bot-mode">—</div></div>
+      <div class="card"><div class="card-label">Open Positions</div><div class="card-value" id="open-pos">—</div></div>
+      <div class="card"><div class="card-label">Signals Today</div><div class="card-value" id="sigs-today">—</div></div>
+      <div class="card"><div class="card-label">Trades Today</div><div class="card-value" id="trades-today">—</div></div>
+      <div class="card"><div class="card-label">Daily P&L</div><div class="card-value" id="daily-pnl">—</div></div>
+      <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="win-rate">—</div></div>
+    </div>
+    <div class="chart-box"><canvas id="pnl-chart"></canvas></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Time</th><th>Pair</th><th>Direction</th><th>Entry</th><th>SL</th><th>TP1</th><th>RR</th><th>Status</th></tr></thead>
+      <tbody id="recent-signals-body"><tr><td colspan="8" style="text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- ─── 2. Signals ───────────────────────────── -->
+  <section class="section" id="section-signals">
+    <h2>Trade Signals</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Time</th><th>Pair</th><th>TF</th><th>Direction</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>Conf%</th><th>Strategy</th><th>Status</th></tr></thead>
+      <tbody id="signals-body"><tr><td colspan="11" style="text-align:center;color:var(--muted)">No signals yet</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- ─── 3. Trades ────────────────────────────── -->
+  <section class="section" id="section-trades">
+    <h2>Executed Trades</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Time</th><th>Pair</th><th>Direction</th><th>Lot</th><th>Entry</th><th>SL</th><th>TP</th><th>Profit</th><th>Status</th><th>Ticket</th></tr></thead>
+      <tbody id="trades-body"><tr><td colspan="10" style="text-align:center;color:var(--muted)">No trades yet</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- ─── 4. Performance ───────────────────────── -->
+  <section class="section" id="section-performance">
+    <h2>Performance</h2>
+    <div class="card-grid">
+      <div class="card"><div class="card-label">Total Trades</div><div class="card-value" id="p-total">—</div></div>
+      <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="p-wr">—</div></div>
+      <div class="card"><div class="card-label">Net P&L</div><div class="card-value" id="p-pnl">—</div></div>
+      <div class="card"><div class="card-label">Profit Factor</div><div class="card-value" id="p-pf">—</div></div>
+      <div class="card"><div class="card-label">Max Drawdown</div><div class="card-value" id="p-dd">—</div></div>
+      <div class="card"><div class="card-label">Avg R:R</div><div class="card-value" id="p-rr">—</div></div>
+    </div>
+    <div class="chart-box"><canvas id="perf-chart"></canvas></div>
+  </section>
+
+  <!-- ─── 5. Settings ──────────────────────────── -->
+  <section class="section" id="section-settings">
+    <h2>Settings</h2>
+    <div style="background:var(--surface);border-radius:10px;padding:1.5rem;max-width:500px;">
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem;">Runtime configuration. Changes apply to next scan cycle.</p>
+      <table><tbody>
+        <tr><td>Bot Mode</td><td id="cfg-mode">—</td></tr>
+        <tr><td>Risk Per Trade</td><td id="cfg-risk">—</td></tr>
+        <tr><td>Min RR Ratio</td><td id="cfg-rr">—</td></tr>
+        <tr><td>Max Positions</td><td id="cfg-maxpos">—</td></tr>
+      </tbody></table>
+      <div style="margin-top:1.5rem;display:flex;gap:.75rem;">
+        <button class="btn btn-teal" onclick="resumeBot()">▶ Resume</button>
+        <button class="btn btn-danger" onclick="pauseBot()">⏸ Pause</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 6. Backtesting ───────────────────────── -->
+  <section class="section" id="section-backtesting">
+    <h2>Backtesting</h2>
+
+    <!-- Controls -->
+    <div class="bt-controls">
+      <label>Symbol
+        <select id="bt-symbol">
+          <option>XAUUSD</option><option>EURUSD</option><option>GBPUSD</option>
+          <option>USDJPY</option><option>BTCUSD</option><option>NAS100</option><option>US30</option>
+        </select>
+      </label>
+      <label>Strategy
+        <select id="bt-strategy"><option value="swing">Swing</option><option value="scalping">Scalping</option></select>
+      </label>
+      <label>Timeframe
+        <select id="bt-timeframe"><option>H4</option><option>H1</option><option>D1</option><option>M15</option><option>M5</option></select>
+      </label>
+      <label>Bars
+        <input type="number" id="bt-count" value="5000" min="500" max="50000" style="width:100px;"/>
+      </label>
+      <label>Init Cash ($)
+        <input type="number" id="bt-cash" value="10000" min="1000" style="width:120px;"/>
+      </label>
+      <button class="btn btn-primary" id="bt-run-btn" onclick="runBacktest()">▶ Run Backtest</button>
+      <button class="btn btn-teal" onclick="compareAllPairs()">🌐 Compare All Pairs</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="bt-progress" id="bt-progress">
+      <span class="dot dot-amber"></span> Running backtest… please wait
+    </div>
+
+    <!-- Results -->
+    <div class="bt-results" id="bt-results">
+      <div class="card-grid" id="bt-stat-cards"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;">
+        <div class="chart-box"><canvas id="bt-equity-chart"></canvas></div>
+        <div class="chart-box"><canvas id="bt-dist-chart"></canvas></div>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-bottom:1rem;">
+        <button class="btn btn-primary" onclick="runMonteCarlo()" id="mc-btn">🎲 Run Monte Carlo</button>
+        <button class="btn btn-teal" onclick="optimizeParams()" id="opt-btn">🔧 Optimize Params</button>
+      </div>
+    </div>
+
+    <!-- Monte Carlo -->
+    <div class="mc-box" id="mc-box">
+      <h3 style="margin-bottom:1rem;font-size:1rem;">Monte Carlo Results</h3>
+      <div class="card-grid" id="mc-stat-cards"></div>
+      <div class="chart-box" style="margin-top:1rem;"><canvas id="mc-fan-chart"></canvas></div>
+    </div>
+
+    <!-- All Pairs Compare Table -->
+    <div id="all-pairs-box" style="display:none;margin-top:1.25rem;">
+      <h3 style="margin-bottom:.75rem;font-size:1rem;">All Pairs Comparison</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Pair</th><th>Strategy</th><th>Trades</th><th>Win%</th><th>Net P&L</th><th>Profit Factor</th><th>Max DD%</th><th>Sharpe</th></tr></thead>
+        <tbody id="all-pairs-body"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// Utilities
+// ══════════════════════════════════════════════════════════
+const API = '';
+let wsConn = null;
+let _pnlChart = null, _perfChart = null;
+let _btEquityChart = null, _btDistChart = null, _mcFanChart = null;
+let _lastBtStats = null;
+
+function $(id){ return document.getElementById(id); }
+
+function showSection(name, el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  $('section-'+name).classList.add('active');
+  el.classList.add('active');
+  if(name==='performance') loadPerformance();
+  if(name==='signals')     loadSignals();
+  if(name==='trades')      loadTrades();
+}
+
+async function api(path, opts={}){
+  try{
+    const r = await fetch(API+path, opts);
+    return await r.json();
+  } catch(e){ console.warn('API error', path, e); return null; }
+}
+
+function fmtNum(v, dec=2){ return v==null?'—':Number(v).toFixed(dec); }
+function colorVal(v){ return v>0?'var(--green)':v<0?'var(--red)':'var(--text)'; }
+
+function sharpeBadge(v){
+  if(v==null) return '<span class="badge badge-amber">N/A</span>';
+  const n=Number(v);
+  if(n>=1)   return `<span class="badge badge-green">${n.toFixed(2)}</span>`;
+  if(n>=0.5) return `<span class="badge badge-amber">${n.toFixed(2)}</span>`;
+  return `<span class="badge badge-red">${n.toFixed(2)}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// WebSocket
+// ══════════════════════════════════════════════════════════
+function connectWS(){
+  const proto = location.protocol==='https:'?'wss':'ws';
+  wsConn = new WebSocket(`${proto}://${location.host}/ws`);
+  wsConn.onopen  = ()=>{ setWS('Connected','dot-green'); };
+  wsConn.onclose = ()=>{ setWS('Disconnected','dot-red'); setTimeout(connectWS,5000); };
+  wsConn.onerror = ()=>{ setWS('Error','dot-red'); };
+  wsConn.onmessage = e=>{
+    try{
+      const msg = JSON.parse(e.data);
+      if(msg.event==='new_signal')  prependSignalRow(msg.data);
+      if(msg.event==='trade_event') prependTradeRow(msg.data);
+      if(msg.event==='status_update') updateStatusCards(msg.data);
+    } catch{}
+  };
+}
+function setWS(label, cls){
+  $('ws-label').textContent = 'WS: '+label;
+  $('ws-footer').textContent = 'WS: '+label;
+  $('ws-dot').className = 'dot '+cls;
+}
+
+// ══════════════════════════════════════════════════════════
+// Dashboard
+// ══════════════════════════════════════════════════════════
+async function loadDashboard(){
+  const [status, perf] = await Promise.all([api('/status'), api('/performance?days=1')]);
+  if(status){ updateStatusCards(status); }
+  if(perf){
+    $('daily-pnl').textContent = '$'+(perf.net_pnl||0).toFixed(2);
+    $('daily-pnl').style.color = colorVal(perf.net_pnl);
+    $('win-rate').textContent  = ((perf.win_rate||0)*100).toFixed(1)+'%';
+  }
+  const sigs = await api('/signals?limit=10');
+  if(sigs && sigs.signals) renderRecentSignals(sigs.signals);
+  renderPnlChart([]);
+}
+
+function updateStatusCards(s){
+  if(!s) return;
+  $('bot-mode').textContent  = s.mode || '—';
+  $('open-pos').textContent  = s.open_positions ?? '—';
+  $('sigs-today').textContent = s.signals_today ?? '—';
+  $('trades-today').textContent = s.trades_today ?? '—';
+}
+
+function renderRecentSignals(sigs){
+  const tbody = $('recent-signals-body');
+  if(!sigs.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">No signals</td></tr>'; return; }
+  tbody.innerHTML = sigs.map(s=>`
+    <tr>
+      <td>${new Date(s.created_at||Date.now()).toLocaleTimeString()}</td>
+      <td><b>${s.symbol||'—'}</b></td>
+      <td><span class="badge ${s.direction==='BUY'?'badge-green':'badge-red'}">${s.direction||'—'}</span></td>
+      <td>${fmtNum(s.entry)}</td>
+      <td>${fmtNum(s.stop_loss)}</td>
+      <td>${fmtNum(s.take_profit_1)}</td>
+      <td>${fmtNum(s.rr_ratio,1)}</td>
+      <td><span class="badge badge-blue">${s.status||'PENDING'}</span></td>
+    </tr>`).join('');
+}
+
+function prependSignalRow(s){ renderRecentSignals([s]); }
+function prependTradeRow(t){}
+
+function renderPnlChart(data){
+  const ctx = $('pnl-chart').getContext('2d');
+  if(_pnlChart) _pnlChart.destroy();
+  _pnlChart = new Chart(ctx,{
+    type:'line',
+    data:{labels:data.map((_,i)=>i),datasets:[{label:'Equity Curve',data:data,borderColor:'#6c63ff',fill:true,backgroundColor:'rgba(108,99,255,.1)',tension:.4,pointRadius:0}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// Signals & Trades
+// ══════════════════════════════════════════════════════════
+async function loadSignals(){
+  const d = await api('/signals?limit=100');
+  if(!d) return;
+  const tb = $('signals-body');
+  if(!d.signals.length){ tb.innerHTML='<tr><td colspan="11" style="text-align:center;color:var(--muted)">No signals</td></tr>'; return; }
+  tb.innerHTML = d.signals.map(s=>`
+    <tr>
+      <td>${new Date(s.created_at||Date.now()).toLocaleString()}</td>
+      <td><b>${s.symbol}</b></td><td>${s.timeframe||'—'}</td>
+      <td><span class="badge ${s.direction==='BUY'?'badge-green':'badge-red'}">${s.direction}</span></td>
+      <td>${fmtNum(s.entry)}</td><td>${fmtNum(s.stop_loss)}</td>
+      <td>${fmtNum(s.take_profit_1)}</td><td>${fmtNum(s.take_profit_2)}</td>
+      <td>${fmtNum(s.confidence,0)}%</td><td>${s.strategy||'—'}</td>
+      <td><span class="badge badge-blue">${s.status||'PENDING'}</span></td>
+    </tr>`).join('');
+}
+
+async function loadTrades(){
+  const d = await api('/trades?limit=100');
+  if(!d) return;
+  const tb = $('trades-body');
+  if(!d.trades.length){ tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted)">No trades</td></tr>'; return; }
+  tb.innerHTML = d.trades.map(t=>`
+    <tr>
+      <td>${new Date(t.created_at||Date.now()).toLocaleString()}</td>
+      <td><b>${t.symbol}</b></td>
+      <td><span class="badge ${t.direction==='BUY'?'badge-green':'badge-red'}">${t.direction}</span></td>
+      <td>${fmtNum(t.lot_size,2)}</td><td>${fmtNum(t.entry_price)}</td>
+      <td>${fmtNum(t.stop_loss)}</td><td>${fmtNum(t.take_profit_1)}</td>
+      <td style="color:${colorVal(t.profit)}">${fmtNum(t.profit,2)}</td>
+      <td><span class="badge badge-teal">${t.status||'OPEN'}</span></td>
+      <td style="font-size:.75rem;color:var(--muted)">${t.mt5_ticket||'—'}</td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// Performance
+// ══════════════════════════════════════════════════════════
+async function loadPerformance(){
+  const d = await api('/performance?days=30');
+  if(!d) return;
+  $('p-total').textContent = d.total_trades ?? '—';
+  $('p-wr').textContent    = d.win_rate ? (d.win_rate*100).toFixed(1)+'%' : '—';
+  $('p-pnl').textContent   = d.net_pnl ? '$'+d.net_pnl.toFixed(2) : '—';
+  $('p-pnl').style.color   = colorVal(d.net_pnl);
+  $('p-pf').textContent    = fmtNum(d.profit_factor);
+  $('p-dd').textContent    = d.max_drawdown ? d.max_drawdown.toFixed(1)+'%' : '—';
+  $('p-rr').textContent    = fmtNum(d.avg_rr,1);
+}
+
+// ══════════════════════════════════════════════════════════
+// Bot controls
+// ══════════════════════════════════════════════════════════
+async function pauseBot(){
+  await api('/pause',{method:'POST'});
+  $('bot-mode').textContent = 'PAUSED';
+}
+async function resumeBot(){
+  await api('/resume',{method:'POST'});
+  loadDashboard();
+}
+
+// ══════════════════════════════════════════════════════════
+// PHASE 3 — Backtesting
+// ══════════════════════════════════════════════════════════
+let _btJobId = null;
+let _btPollTimer = null;
+
+async function runBacktest(){
+  const symbol   = $('bt-symbol').value;
+  const strategy = $('bt-strategy').value;
+  const tf       = $('bt-timeframe').value;
+  const count    = $('bt-count').value;
+  const cash     = $('bt-cash').value;
+
+  $('bt-run-btn').disabled = true;
+  $('bt-progress').style.display = 'block';
+  $('bt-results').style.display  = 'none';
+  $('mc-box').style.display      = 'none';
+
+  const d = await api(`/backtest/run?symbol=${symbol}&strategy=${strategy}&timeframe=${tf}&count=${count}&init_cash=${cash}`);
+  if(!d || !d.job_id){ alert('Backtest failed to start'); $('bt-run-btn').disabled=false; return; }
+
+  _btJobId = d.job_id;
+  _btPollTimer = setInterval(pollBtResult, 2000);
+}
+
+async function pollBtResult(){
+  if(!_btJobId) return;
+  const d = await api(`/backtest/result/${_btJobId}`);
+  if(!d) return;
+  if(d.status === 'done'){
+    clearInterval(_btPollTimer);
+    $('bt-progress').style.display = 'none';
+    $('bt-run-btn').disabled = false;
+    renderBtResults(d.result);
+  } else if(d.status === 'error'){
+    clearInterval(_btPollTimer);
+    $('bt-progress').style.display = 'none';
+    $('bt-run-btn').disabled = false;
+    alert('Backtest error: ' + (d.error || 'Unknown'));
+  }
+}
+
+function renderBtResults(r){
+  if(!r){ return; }
+  _lastBtStats = r;
+  $('bt-results').style.display = 'block';
+
+  const cards = [
+    ['Total Trades', r.total_trades, ''],
+    ['Win Rate',     ((r.win_rate||0)*100).toFixed(1)+'%', r.win_rate>=0.5?'green':'red'],
+    ['Net P&L',      '$'+fmtNum(r.net_pnl), r.net_pnl>=0?'green':'red'],
+    ['Profit Factor',fmtNum(r.profit_factor), r.profit_factor>=1.2?'green':r.profit_factor>=1?'amber':'red'],
+    ['Max Drawdown', fmtNum(r.max_drawdown_pct)+'%', r.max_drawdown_pct<=15?'green':r.max_drawdown_pct<=25?'amber':'red'],
+    ['Sharpe Ratio', fmtNum(r.sharpe_ratio), r.sharpe_ratio>=1?'green':r.sharpe_ratio>=0.5?'amber':'red'],
+  ];
+
+  $('bt-stat-cards').innerHTML = cards.map(([label,val,col])=>`
+    <div class="card">
+      <div class="card-label">${label}</div>
+      <div class="card-value" style="color:${col?'var(--'+col+')':'var(--text)'}">${val}</div>
+    </div>`).join('');
+
+  // Equity curve from trade returns
+  const returns = r.trade_returns || [];
+  let equity = parseFloat($('bt-cash').value)||10000;
+  const curve = [equity];
+  returns.forEach(ret => { equity *= 1 + ret/100; curve.push(parseFloat(equity.toFixed(2))); });
+  renderBtEquityChart(curve);
+  renderBtDistChart(returns);
+}
+
+function renderBtEquityChart(curve){
+  const ctx = $('bt-equity-chart').getContext('2d');
+  if(_btEquityChart) _btEquityChart.destroy();
+  _btEquityChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:curve.map((_,i)=>i),datasets:[{label:'Equity ($)',data:curve,borderColor:'#6c63ff',fill:true,backgroundColor:'rgba(108,99,255,.1)',tension:.3,pointRadius:0}]},
+    options:{responsive:true,plugins:{legend:{display:false},title:{display:true,text:'Equity Curve',color:'#e2e8f0'}},scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'}}}}
+  });
+}
+
+function renderBtDistChart(returns){
+  const ctx = $('bt-dist-chart').getContext('2d');
+  if(_btDistChart) _btDistChart.destroy();
+  // Bucket into bins
+  const bins = {};
+  const step = 0.5;
+  returns.forEach(r=>{
+    const b = Math.round(r/step)*step;
+    bins[b] = (bins[b]||0)+1;
+  });
+  const labels = Object.keys(bins).map(Number).sort((a,b)=>a-b);
+  const data   = labels.map(l=>bins[l]);
+  const colors = labels.map(l=> l>=0?'rgba(34,197,94,.7)':'rgba(239,68,68,.7)');
+  _btDistChart = new Chart(ctx, {
+    type:'bar',
+    data:{labels:labels.map(l=>l+'%'),datasets:[{label:'Trade Distribution',data,backgroundColor:colors}]},
+    options:{responsive:true,plugins:{legend:{display:false},title:{display:true,text:'Trade Return Distribution',color:'#e2e8f0'}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'}},y:{grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+async function runMonteCarlo(){
+  if(!_lastBtStats){ alert('Run a backtest first'); return; }
+  const symbol   = $('bt-symbol').value;
+  const strategy = $('bt-strategy').value;
+  const cash     = parseFloat($('bt-cash').value)||10000;
+
+  $('mc-btn').disabled = true;
+  $('mc-btn').textContent = '⏳ Simulating…';
+
+  const d = await api('/backtest/monte-carlo', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({symbol, strategy, n_simulations:1000, init_cash:cash})
+  });
+
+  $('mc-btn').disabled = false;
+  $('mc-btn').textContent = '🎲 Run Monte Carlo';
+
+  if(!d || !d.monte_carlo){ alert('Monte Carlo failed'); return; }
+  renderMcResults(d.monte_carlo, cash);
+}
+
+function renderMcResults(mc, initCash){
+  $('mc-box').style.display = 'block';
+
+  const pctLoss = (mc.probability_of_loss*100).toFixed(1)+'%';
+  const pctRuin = (mc.probability_of_ruin*100).toFixed(1)+'%';
+
+  $('mc-stat-cards').innerHTML = [
+    ['Expected Return', mc.expected_return_pct+'%', mc.expected_return_pct>=0?'green':'red'],
+    ['Median Equity', '$'+mc.median_final_equity, ''],
+    ['P5 (Worst 5%)', '$'+mc.p5_final_equity, 'red'],
+    ['P95 (Best 5%)', '$'+mc.p95_final_equity, 'green'],
+    ['P(Loss)', pctLoss, mc.probability_of_loss>0.4?'red':'amber'],
+    ['P(Ruin 3%)', pctRuin, mc.probability_of_ruin>0.2?'red':'green'],
+  ].map(([label,val,col])=>`
+    <div class="card">
+      <div class="card-label">${label}</div>
+      <div class="card-value" style="color:${col?'var(--'+col+')':'var(--text)'}">${val}</div>
+    </div>`).join('');
+
+  // Fan chart — overlay sample equity curves
+  renderMcFanChart(mc.sample_equity_curves || [], initCash);
+}
+
+function renderMcFanChart(curves, initCash){
+  const ctx = $('mc-fan-chart').getContext('2d');
+  if(_mcFanChart) _mcFanChart.destroy();
+
+  const maxLen = curves.reduce((m,c)=>Math.max(m,c.length),0);
+  const labels = Array.from({length:maxLen},(_,i)=>i);
+
+  const datasets = curves.slice(0,50).map((curve,i)=>({
+    data: curve,
+    borderColor: 'rgba(108,99,255,0.15)',
+    borderWidth: 1,
+    fill: false,
+    pointRadius: 0,
+    tension: 0.3,
+  }));
+
+  _mcFanChart = new Chart(ctx, {
+    type:'line',
+    data:{labels, datasets},
+    options:{responsive:true,animation:false,
+      plugins:{legend:{display:false},title:{display:true,text:'Monte Carlo Fan (50 Scenarios)',color:'#e2e8f0'}},
+      scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'}}}
+    }
+  });
+}
+
+async function optimizeParams(){
+  const symbol   = $('bt-symbol').value;
+  const strategy = $('bt-strategy').value;
+  const tf       = $('bt-timeframe').value;
+
+  $('opt-btn').disabled = true;
+  $('opt-btn').textContent = '⏳ Optimizing…';
+
+  const d = await api('/backtest/optimize', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({symbol, strategy, timeframe:tf})
+  });
+
+  $('opt-btn').disabled = false;
+  $('opt-btn').textContent = '🔧 Optimize Params';
+
+  if(!d || !d.job_id){ alert('Optimize failed'); return; }
+  // Poll for result
+  const poll = async ()=>{
+    const r = await api(`/backtest/result/${d.job_id}`);
+    if(!r) return;
+    if(r.status==='done'){
+      alert(`Best params:\n${JSON.stringify(r.result?.best_params, null, 2)}`);
+    } else if(r.status==='error'){
+      alert('Error: '+(r.error||'unknown'));
+    } else {
+      setTimeout(poll, 2000);
+    }
+  };
+  setTimeout(poll, 2000);
+}
+
+async function compareAllPairs(){
+  const strategy = $('bt-strategy').value;
+  $('all-pairs-box').style.display = 'none';
+
+  const d = await api(`/backtest/all-pairs?strategy=${strategy}`);
+  if(!d || !Array.isArray(d)) return;
+
+  const tb = $('all-pairs-body');
+  tb.innerHTML = d.map(r=>`
+    <tr>
+      <td><b>${r.symbol||'—'}</b></td>
+      <td>${r.strategy||strategy}</td>
+      <td>${r.total_trades??0}</td>
+      <td>${r.win_rate ? (r.win_rate*100).toFixed(1)+'%' : '—'}</td>
+      <td style="color:${colorVal(r.net_pnl)}">${r.net_pnl!=null?'$'+fmtNum(r.net_pnl):'—'}</td>
+      <td>${fmtNum(r.profit_factor)}</td>
+      <td>${fmtNum(r.max_drawdown_pct)}%</td>
+      <td>${sharpeBadge(r.sharpe_ratio)}</td>
+    </tr>`).join('');
+
+  $('all-pairs-box').style.display = 'block';
+}
+
+// ══════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════
+connectWS();
+loadDashboard();
+setInterval(loadDashboard, 30000);
+</script>
+</body>
+</html>

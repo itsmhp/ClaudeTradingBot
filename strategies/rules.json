@@ -1,0 +1,71 @@
+{
+  "watchlist": ["XAUUSD", "BTCUSD", "USDJPY", "EURUSD", "GBPUSD", "NAS100", "US30"],
+  "global_rules": {
+    "max_concurrent_trades": 3,
+    "max_daily_loss_pct": 3.0,
+    "default_risk_per_trade_pct": 1.0,
+    "default_min_rr": 2.0,
+    "news_blackout_events": [
+      "US CPI", "FOMC", "NFP", "FOMC Minutes", "US GDP",
+      "BOE Rate Decision", "ECB Rate Decision"
+    ]
+  },
+  "instrument_config": {
+    "XAUUSD": {
+      "magic_number": 234001,
+      "spread_cap_points": 30,
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["London", "NewYork"],
+      "min_move_pips": 5,
+      "avoid_minutes_before_news": 30
+    },
+    "BTCUSD": {
+      "magic_number": 234002,
+      "spread_cap_points": 5000,
+      "preferred_modes": ["swing"],
+      "preferred_sessions": ["London", "NewYork", "Asian"],
+      "min_move_pips": 50,
+      "avoid_minutes_before_news": 30
+    },
+    "EURUSD": {
+      "magic_number": 234003,
+      "spread_cap_points": 15,
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["London", "NewYork"],
+      "min_move_pips": 2,
+      "avoid_minutes_before_news": 30
+    },
+    "GBPUSD": {
+      "magic_number": 234004,
+      "spread_cap_points": 18,
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["London", "NewYork"],
+      "min_move_pips": 3,
+      "avoid_minutes_before_news": 30
+    },
+    "USDJPY": {
+      "magic_number": 234005,
+      "spread_cap_points": 15,
+      "preferred_modes": ["scalp", "swing"],
+      "preferred_sessions": ["Asian", "London"],
+      "min_move_pips": 2,
+      "avoid_minutes_before_news": 30
+    },
+    "NAS100": {
+      "magic_number": 234006,
+      "spread_cap_points": 200,
+      "preferred_modes": ["swing"],
+      "preferred_sessions": ["NewYork"],
+      "min_move_pips": 20,
+      "avoid_minutes_before_news": 60
+    },
+    "US30": {
+      "magic_number": 234007,
+      "spread_cap_points": 300,
+      "preferred_modes": ["swing"],
+      "preferred_sessions": ["NewYork"],
+      "min_move_pips": 30,
+      "avoid_minutes_before_news": 60
+    }
+  }
+}
