@@ -8,25 +8,25 @@
   },
 
   "watchlist": {
-    "commodities": ["XAUUSD"],
-    "crypto": ["BTCUSD"],
-    "forex_majors": ["EURUSD", "USDJPY"],
+    "commodities": ["XAUUSDm"],
+    "crypto": ["BTCUSDm"],
+    "forex_majors": ["EURUSDm", "USDJPYm"],
     "indices": []
   },
 
-  "active_pairs": ["XAUUSD", "EURUSD", "USDJPY", "BTCUSD"],
+  "active_pairs": ["XAUUSDm", "EURUSDm", "USDJPYm", "BTCUSDm"],
 
   "instruments": {
-    "XAUUSD": {
+    "XAUUSDm": {
       "display_name": "Gold vs USD",
       "category": "commodities",
       "preferred_modes": ["scalp", "swing"],
       "preferred_sessions": ["london", "new_york"],
-      "spread_cap_points": 35,
-      "typical_spread_points": 25,
+      "spread_cap_points": 600,
+      "typical_spread_points": 280,
       "min_move_pips": 3.0,
-      "pip_size": 0.01,
-      "digits": 2,
+      "pip_size": 0.001,
+      "digits": 3,
       "contract_size": 100,
       "min_lot": 0.01,
       "max_lot": 50.0,
@@ -54,13 +54,13 @@
       "notes": "Gold is highly volatile during NY session. Avoid scalping during thin Asian liquidity. Best setups at London open and NY open. Spread widens significantly during news events."
     },
 
-    "BTCUSD": {
+    "BTCUSDm": {
       "display_name": "Bitcoin vs USD",
       "category": "crypto",
       "preferred_modes": ["scalp", "swing"],
       "preferred_sessions": ["any"],
-      "spread_cap_points": 1500,
-      "typical_spread_points": 800,
+      "spread_cap_points": 20000,
+      "typical_spread_points": 14000,
       "min_move_pips": 50.0,
       "pip_size": 0.01,
       "digits": 2,
@@ -94,15 +94,15 @@
       "notes": "BTC trades 24/7. For scalping use M15 only during high-volume hours (08:00-00:00 WIB). Lot size auto-calculated to cap loss at $20 USD regardless of entry/SL distance."
     },
 
-    "EURUSD": {
+    "EURUSDm": {
       "display_name": "Euro vs USD",
       "category": "forex_majors",
       "preferred_modes": ["scalp", "swing"],
       "preferred_sessions": ["london", "new_york", "london_ny_overlap"],
-      "spread_cap_points": 15,
-      "typical_spread_points": 6,
+      "spread_cap_points": 20,
+      "typical_spread_points": 8,
       "min_move_pips": 0.8,
-      "pip_size": 0.0001,
+      "pip_size": 0.00001,
       "digits": 5,
       "contract_size": 100000,
       "min_lot": 0.01,
@@ -168,7 +168,7 @@
       "notes": "More volatile than EURUSD. Excellent intraday moves during London session. Avoid scalping in Asian session. BOE rate decisions cause massive spikes — always avoid."
     },
 
-    "USDJPY": {
+    "USDJPYm": {
       "display_name": "US Dollar vs Japanese Yen",
       "category": "forex_majors",
       "preferred_modes": ["scalp", "swing"],

@@ -212,6 +212,12 @@ class HistoricalDataLoader:
     ) -> pd.DataFrame:
         if not MT5_AVAILABLE or mt5 is None:
             raise DataLoadError("MetaTrader5 library not available.")
+        # Ensure symbol is visible in Market Watch before requesting rates
+        if not mt5.symbol_select(symbol, True):
+            err = mt5.last_error()
+            raise DataLoadError(
+                f"Cannot select symbol {symbol} in MT5 Market Watch. Error: {err}"
+            )
         tf_const = self._resolve_timeframe(timeframe)
         rates = mt5.copy_rates_from_pos(symbol, tf_const, 0, count)
         if rates is None or len(rates) == 0:

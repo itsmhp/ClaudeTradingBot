@@ -46,13 +46,16 @@ _RETCODE_MSG: dict[int, str] = {
 
 # Fallback instrument specs used when symbol_info is unavailable
 _INSTRUMENT_SPECS: dict[str, dict] = {
+    "XAUUSDm": {"point": 0.01,    "contract_size": 100,    "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
+    "BTCUSDm": {"point": 0.01,    "contract_size": 1,      "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
+    "EURUSDm": {"point": 0.00001, "contract_size": 100000, "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
+    "GBPUSDm": {"point": 0.00001, "contract_size": 100000, "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
+    "USDJPYm": {"point": 0.001,   "contract_size": 100000, "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
+    # Legacy names kept as aliases
     "XAUUSD":  {"point": 0.01,    "contract_size": 100,    "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
     "BTCUSD":  {"point": 0.01,    "contract_size": 1,      "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
     "EURUSD":  {"point": 0.00001, "contract_size": 100000, "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
-    "GBPUSD":  {"point": 0.00001, "contract_size": 100000, "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
     "USDJPY":  {"point": 0.001,   "contract_size": 100000, "volume_min": 0.01, "volume_max": 100, "volume_step": 0.01},
-    "NAS100":  {"point": 0.01,    "contract_size": 1,      "volume_min": 0.1,  "volume_max": 100, "volume_step": 0.1},
-    "US30":    {"point": 0.01,    "contract_size": 1,      "volume_min": 0.1,  "volume_max": 100, "volume_step": 0.1},
 }
 
 
@@ -178,6 +181,8 @@ class MT5Bridge:
         dict with keys: bid, ask, spread
         """
         try:
+            # Ensure symbol is visible in Market Watch
+            await asyncio.to_thread(mt5.symbol_select, symbol, True)
             tick = await asyncio.to_thread(mt5.symbol_info_tick, symbol)
             if tick is None:
                 return {}

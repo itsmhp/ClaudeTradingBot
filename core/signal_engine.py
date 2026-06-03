@@ -203,6 +203,91 @@ class SignalEngine:
             else:
                 self._watchlist = [p for cat in wl.values() for p in cat]
 
+    async def _compute_indicators(self, pair: str, timeframe: str) -> dict:
+        """Fetch recent OHLCV bars from MT5 and compute RSI, EMA50, EMA200, MACD."""
+        try:
+            import MetaTrader5 as mt5
+            import asyncio as _asyncio
+
+            TF_MAP = {
+                "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5,
+                "M15": mt5.TIMEFRAME_M15, "M30": mt5.TIMEFRAME_M30,
+                "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+                "D1": mt5.TIMEFRAME_D1,
+            }
+            tf = TF_MAP.get(timeframe, mt5.TIMEFRAME_M15)
+
+            await _asyncio.to_thread(mt5.symbol_select, pair, True)
+            rates = await _asyncio.to_thread(mt5.copy_rates_from_pos, pair, tf, 0, 250)
+            if rates is None or len(rates) < 20:
+                logger.warning(f"[SignalEngine] Not enough bars for {pair} {timeframe}")
+                return {}
+
+            closes = [r["close"] for r in rates]
+
+            def _ema(prices: list[float], period: int) -> list[float]:
+                k = 2.0 / (period + 1)
+                result = [prices[0]]
+                for p in prices[1:]:
+                    result.append(p * k + result[-1] * (1 - k))
+                return result
+
+            def _rsi(prices: list[float], period: int = 14) -> float:
+                if len(prices) < period + 1:
+                    return 50.0
+                gains, losses = [], []
+                for i in range(1, period + 1):
+                    diff = prices[-period - 1 + i] - prices[-period - 2 + i]
+                    (gains if diff > 0 else losses).append(abs(diff))
+                avg_gain = sum(gains) / period if gains else 0
+                avg_loss = sum(losses) / period if losses else 1e-9
+                rs = avg_gain / avg_loss
+                return round(100 - (100 / (1 + rs)), 2)
+
+            ema50_series = _ema(closes, 50)
+            ema200_series = _ema(closes, 200)
+            macd_fast = _ema(closes, 12)
+            macd_slow = _ema(closes, 26)
+            macd_line_series = [f - s for f, s in zip(macd_fast, macd_slow)]
+            signal_series = _ema(macd_line_series, 9)
+
+            ema50 = round(ema50_series[-1], 5)
+            ema200 = round(ema200_series[-1], 5)
+            macd_line = round(macd_line_series[-1], 5)
+            signal_line = round(signal_series[-1], 5)
+            histogram = round(macd_line - signal_line, 5)
+            rsi = _rsi(closes)
+
+            # Simple structure detection
+            last_5 = closes[-5:]
+            structure = "bullish" if last_5[-1] > last_5[0] else "bearish"
+
+            # S/R: swing highs/lows in last 50 bars
+            highs = [r["high"] for r in rates[-50:]]
+            lows = [r["low"] for r in rates[-50:]]
+            resistance = sorted(set([round(h, 2) for h in sorted(highs, reverse=True)[:3]]), reverse=True)
+            support = sorted([round(l, 2) for l in sorted(lows)[:3]])
+
+            # Recent 5 candles summary for Claude
+            recent = []
+            for r in rates[-5:]:
+                recent.append({
+                    "open": r["open"], "high": r["high"],
+                    "low": r["low"], "close": r["close"],
+                    "vol": r["tick_volume"],
+                })
+
+            return {
+                "rsi": rsi, "ema_50": ema50, "ema_200": ema200,
+                "macd_line": macd_line, "signal_line": signal_line,
+                "histogram": histogram, "structure": structure,
+                "support_levels": support, "resistance_levels": resistance,
+                "recent_candles": recent,
+            }
+        except Exception as exc:
+            logger.warning(f"[SignalEngine] Indicator compute failed for {pair}: {exc}")
+            return {}
+
     async def process_pair(self, pair: str, timeframe: str, strategy: str) -> dict:
         """Full signal pipeline for one trading pair.
 
@@ -247,21 +332,25 @@ class SignalEngine:
             symbol_info = await self.mt5_bridge.get_symbol_info(pair)
             current_spread: int = int(symbol_info.get("spread", 0)) if symbol_info else 0
 
+            # Step 1b — Fetch OHLCV candles and compute indicators
+            indicator_data = await self._compute_indicators(pair, timeframe)
+
             # Step 2 — Package chart_data
             chart_data: dict = {
                 "bid": price_info.get("bid", 0),
                 "ask": price_info.get("ask", 0),
                 "spread": current_spread,
                 "price": price_info.get("ask", 0),
-                "rsi": None,
-                "macd_line": None,
-                "signal_line": None,
-                "histogram": None,
-                "ema_50": None,
-                "ema_200": None,
-                "structure": "unknown",
-                "support_levels": [],
-                "resistance_levels": [],
+                "rsi": indicator_data.get("rsi"),
+                "macd_line": indicator_data.get("macd_line"),
+                "signal_line": indicator_data.get("signal_line"),
+                "histogram": indicator_data.get("histogram"),
+                "ema_50": indicator_data.get("ema_50"),
+                "ema_200": indicator_data.get("ema_200"),
+                "recent_candles": indicator_data.get("recent_candles", []),
+                "structure": indicator_data.get("structure", "unknown"),
+                "support_levels": indicator_data.get("support_levels", []),
+                "resistance_levels": indicator_data.get("resistance_levels", []),
             }
 
             # Step 2b — Optionally inject news sentiment into chart_data

@@ -587,3 +587,34 @@ async def ai_consensus_stats():
     if ce is None:
         return {"message": "ConsensusEngine not available", "mode": "CLAUDE_ONLY"}
     return ce.get_consensus_stats()
+
+
+# ════════════════════════════════════════════════════════════════
+# DEBUG — MT5 diagnostics
+# ════════════════════════════════════════════════════════════════
+
+@router.get("/debug/mt5")
+async def debug_mt5(keyword: str = "XAU"):
+    """List all MT5 symbols containing the keyword and show tick for each."""
+    import asyncio
+    try:
+        import MetaTrader5 as mt5
+    except ImportError:
+        return {"error": "MetaTrader5 not installed"}
+
+    kw = keyword.upper()
+    symbols = await asyncio.to_thread(mt5.symbols_get, f"*{kw}*")
+    if not symbols:
+        err = await asyncio.to_thread(mt5.last_error)
+        return {"error": f"symbols_get failed: {err}", "keyword": kw}
+
+    result = []
+    for s in symbols[:20]:  # limit to 20
+        await asyncio.to_thread(mt5.symbol_select, s.name, True)
+        tick = await asyncio.to_thread(mt5.symbol_info_tick, s.name)
+        result.append({
+            "name": s.name,
+            "bid": tick.bid if tick else None,
+            "ask": tick.ask if tick else None,
+        })
+    return {"symbols": result, "count": len(symbols)}
