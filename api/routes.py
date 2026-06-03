@@ -449,3 +449,116 @@ async def copy_performance():
     if ce is None:
         raise HTTPException(503, "CopyEngine not available")
     return ce.get_copy_performance()
+
+
+# ════════════════════════════════════════════════════════════════
+# PHASE 5 — Advanced AI: Regime, Sentiment, News, Consensus
+# ════════════════════════════════════════════════════════════════
+
+_consensus_engine_inst = None
+_news_monitor_inst = None
+_feedback_loop_inst = None
+
+
+def _get_p5_consensus():
+    global _consensus_engine_inst
+    if _consensus_engine_inst is None:
+        try:
+            from core.consensus_engine import ConsensusEngine
+            _consensus_engine_inst = ConsensusEngine()
+        except Exception as exc:
+            logger.warning(f"[Routes] ConsensusEngine unavailable: {exc}")
+    return _consensus_engine_inst
+
+
+def _get_p5_news_monitor():
+    global _news_monitor_inst
+    if _news_monitor_inst is None:
+        try:
+            from core.news_monitor import NewsMonitor
+            _news_monitor_inst = NewsMonitor()
+        except Exception as exc:
+            logger.warning(f"[Routes] NewsMonitor unavailable: {exc}")
+    return _news_monitor_inst
+
+
+def _get_p5_feedback_loop():
+    global _feedback_loop_inst
+    if _feedback_loop_inst is None:
+        try:
+            from core.feedback_loop import FeedbackLoop
+            _feedback_loop_inst = FeedbackLoop()
+        except Exception as exc:
+            logger.warning(f"[Routes] FeedbackLoop unavailable: {exc}")
+    return _feedback_loop_inst
+
+
+@router.get("/ai/regime")
+async def ai_regime_all():
+    """Return cached market regime for all pairs."""
+    try:
+        from main import _regime_cache  # type: ignore[import]
+        if _regime_cache:
+            return {"regimes": _regime_cache, "source": "cache"}
+    except ImportError:
+        pass
+    # Compute on-demand if cache not available
+    try:
+        from core.market_regime import MarketRegimeDetector
+        detector = MarketRegimeDetector()
+        regimes = await detector.get_regime_for_all_pairs()
+        return {"regimes": regimes, "source": "realtime"}
+    except Exception as exc:
+        raise HTTPException(503, f"Regime detection unavailable: {exc}")
+
+
+@router.get("/ai/regime/{symbol}")
+async def ai_regime_symbol(symbol: str):
+    """Real-time regime detection for a specific symbol."""
+    try:
+        from core.market_regime import MarketRegimeDetector
+        detector = MarketRegimeDetector()
+        result = await detector.detect_regime(symbol.upper())
+        return result
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+
+@router.get("/ai/sentiment/{symbol}")
+async def ai_sentiment(symbol: str):
+    """Fetch news sentiment for a symbol."""
+    nm = _get_p5_news_monitor()
+    if nm is None:
+        raise HTTPException(503, "NewsMonitor not available")
+    result = await nm.fetch_market_sentiment(symbol.upper())
+    return result
+
+
+@router.get("/ai/news-calendar")
+async def ai_news_calendar(hours: int = 24):
+    """Return upcoming high-impact news events."""
+    nm = _get_p5_news_monitor()
+    if nm is None:
+        return {"events": [], "message": "NewsMonitor not available"}
+    events = await nm.get_upcoming_events_formatted(hours_ahead=hours)
+    return {"events": events, "count": len(events)}
+
+
+@router.get("/ai/performance-context")
+async def ai_performance_context(days: int = 30):
+    """Return the FeedbackLoop performance summary string."""
+    fl = _get_p5_feedback_loop()
+    if fl is None:
+        return {"context": "", "message": "FeedbackLoop not available"}
+    context = await fl.build_performance_context(days=days)
+    perf = await fl.get_recent_performance_by_pair(days=days)
+    return {"context": context, "performance": perf, "days": days}
+
+
+@router.get("/ai/consensus-stats")
+async def ai_consensus_stats():
+    """Return Claude vs GPT agreement rate stats."""
+    ce = _get_p5_consensus()
+    if ce is None:
+        return {"message": "ConsensusEngine not available", "mode": "CLAUDE_ONLY"}
+    return ce.get_consensus_stats()

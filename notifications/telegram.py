@@ -114,3 +114,51 @@ class TelegramNotifier:
         """Send bot-paused alert."""
         msg = f"\U0001F6D1 BOT PAUSED\n{reason}"
         await self._send(msg)
+
+    async def send_news_blackout_alert(self, pair: str, event_name: str) -> None:
+        """Notify that a pair was skipped due to an upcoming news event."""
+        msg = f"\u23F8 {pair} skipped — {event_name}"
+        await self._send(msg)
+
+    async def send_voice_alert(self, signal: "TradeSignal") -> None:
+        """Send a voice (MP3) alert via Telegram using gTTS.
+
+        Requires VOICE_ALERTS_ENABLED=true in .env and gTTS installed.
+        """
+        if os.getenv("VOICE_ALERTS_ENABLED", "false").lower() != "true":
+            return
+        if not self._token or not self._chat_id:
+            return
+
+        from core.signal_engine import Direction
+        dir_word = "buy" if signal.direction == Direction.BUY else "sell"
+        speech_text = (
+            f"{dir_word} signal for {signal.pair}. "
+            f"Entry at {signal.entry_price}. "
+            f"Stop loss at {signal.stop_loss}. "
+            f"Take profit at {signal.take_profit_1}. "
+            f"Confidence {signal.confidence} percent."
+        )
+
+        try:
+            from gtts import gTTS  # type: ignore[import]
+            import tempfile
+            import os as _os
+
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_path = tmp.name
+
+            tts = gTTS(text=speech_text, lang="en", slow=False)
+            tts.save(tmp_path)
+
+            from telegram import Bot
+            bot = Bot(token=self._token)
+            with open(tmp_path, "rb") as audio:
+                await bot.send_voice(chat_id=self._chat_id, voice=audio)
+
+            _os.unlink(tmp_path)
+            logger.info(f"Voice alert sent for {signal.pair}")
+        except ImportError:
+            logger.warning("[Telegram] gTTS not installed — run: pip install gTTS")
+        except Exception as exc:
+            logger.error(f"[Telegram] Voice alert failed: {exc}")

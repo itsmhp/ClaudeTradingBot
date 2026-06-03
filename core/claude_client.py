@@ -94,11 +94,23 @@ Respond with a trade signal JSON or NO_TRADE JSON."""
         TradeSignal or NoTradeSignal
         """
         user_prompt = self._build_user_prompt(pair, timeframe, chart_data)
+
+        # Inject performance context from FeedbackLoop (Phase 5)
+        system_prompt = self._SYSTEM_PROMPT
+        try:
+            from core.feedback_loop import FeedbackLoop
+            fl = FeedbackLoop()
+            perf_context = await fl.build_performance_context(days=30)
+            if perf_context:
+                system_prompt = system_prompt + "\n\n" + perf_context
+        except Exception:
+            pass  # FeedbackLoop is non-critical
+
         try:
             response = self._client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=self._SYSTEM_PROMPT,
+                system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
         except anthropic.APIError as exc:

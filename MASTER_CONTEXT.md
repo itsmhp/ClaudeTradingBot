@@ -1517,29 +1517,29 @@ print(portfolio.stats())
 - [x] WebSocket real-time updates (WS /ws/live — new_signal, order_executed, bot_state_change, daily_loss_limit)
 - [x] Dashboard served from FastAPI at http://localhost:8000
 
-### Phase 3: Backtesting
-- [ ] Historical data loader from MT5
-- [ ] vectorbt integration for fast backtests
-- [ ] Strategy parameter optimization
-- [ ] Walk-forward analysis
-- [ ] Performance comparison (scalping vs swing)
-- [ ] Monte Carlo simulation for risk assessment
+### Phase 3: Backtesting ✅ COMPLETE
+- [x] Historical data loader from MT5
+- [x] vectorbt integration for fast backtests
+- [x] Strategy parameter optimization
+- [x] Walk-forward analysis
+- [x] Performance comparison (scalping vs swing)
+- [x] Monte Carlo simulation for risk assessment
 
-### Phase 4: Multi-Account / Copy Trading
-- [ ] Support multiple MT5 accounts (different brokers)
-- [ ] Proportional lot sizing across accounts
-- [ ] Master/follower architecture
-- [ ] Account-specific risk settings
-- [ ] Aggregated performance dashboard
-- [ ] Trade copying with configurable delay
+### Phase 4: Multi-Account / Copy Trading ✅ COMPLETE
+- [x] Support multiple MT5 accounts (different brokers)
+- [x] Proportional lot sizing across accounts
+- [x] Master/follower architecture
+- [x] Account-specific risk settings
+- [x] Aggregated performance dashboard
+- [x] Trade copying with configurable delay
 
-### Phase 5: Advanced AI Features
-- [ ] Multi-model consensus (Claude + GPT for confirmation)
-- [ ] Learning from trade outcomes (feedback loop)
-- [ ] Dynamic strategy selection based on market regime
-- [ ] News sentiment integration
-- [ ] Custom indicator creation via AI
-- [ ] Voice alerts via Telegram voice messages
+### Phase 5: Advanced AI Features ✅ COMPLETE
+- [x] Multi-model consensus (Claude + GPT-4o-mini via ConsensusEngine)
+- [x] Learning from trade outcomes (FeedbackLoop — injects performance context into Claude prompts)
+- [x] Dynamic strategy selection based on market regime (MarketRegimeDetector)
+- [x] News sentiment integration (NewsMonitor — ForexFactory + NewsAPI)
+- [x] Voice alerts via Telegram voice messages (gTTS + Telegram sendVoice)
+- [x] News blackout enforcement (auto-skip signals during CPI/NFP/FOMC)
 
 ---
 
@@ -1601,3 +1601,74 @@ The 30-second poll timer runs in parallel for data not covered by WebSocket (per
 - JetBrains Mono + Inter fonts from Google Fonts
 - Dark theme: `#0d1117` background, `#1c2128` cards, `#30363d` borders
 - Color code: green `#00c853` (profit/BUY), red `#f44336` (loss/SELL), amber `#ffc107` (warnings), blue `#2196f3` (info)
+
+---
+
+## 21. Phase 5 — Advanced AI Architecture
+
+### 21.1 ConsensusEngine (core/consensus_engine.py)
+
+Runs Claude AI and GPT-4o-mini **in parallel** using syncio.gather() and merges outputs.
+
+| Mode | Behavior |
+|------|----------|
+| CLAUDE_ONLY | Default — zero OpenAI cost |
+| GPT_ONLY | Use GPT-4o-mini only |
+| CONSENSUS | Both must agree on direction, else signal skipped |
+
+Config env var: CONSENSUS_MODE=CLAUDE_ONLY  
+Stats: GET /ai/consensus-stats
+
+---
+
+### 21.2 FeedbackLoop (core/feedback_loop.py)
+
+Reads ExecutedTrade DB table and injects performance summary into Claude system prompt.
+
+- Win rate < 40% on a pair → lot size halved automatically
+- Endpoint: GET /ai/performance-context?days=30
+
+---
+
+### 21.3 MarketRegimeDetector (core/market_regime.py)
+
+Pure-Python EMA50/200 + ATR + RSI regime classifier. Refreshed every 60 minutes.
+
+| Regime | Auto Strategy |
+|--------|--------------|
+| TRENDING_BULL / TRENDING_BEAR | SWING |
+| RANGING | SCALPING |
+| VOLATILE | AVOID |
+
+Endpoints: GET /ai/regime, GET /ai/regime/{symbol}
+
+---
+
+### 21.4 NewsMonitor (core/news_monitor.py)
+
+Fetches ForexFactory calendar (free, no key). Blocks signals 30 min around HIGH-impact events.
+BTCUSD exempt from forex news blackouts. Cache: 30 min.
+
+Endpoint: GET /ai/news-calendar?hours=24
+
+---
+
+### 21.5 Voice Alerts
+
+gTTS converts signal text to MP3 → Telegram sendVoice.
+Enable with VOICE_ALERTS_ENABLED=true.
+
+---
+
+### 21.6 Phase 5 New Files
+
+| File | Purpose |
+|------|---------|
+| core/consensus_engine.py | Claude + GPT-4o-mini parallel consensus |
+| core/feedback_loop.py | DB-driven performance context injector |
+| core/market_regime.py | Market regime detector (EMA/ATR/RSI) |
+| core/news_monitor.py | ForexFactory + NewsAPI economic calendar |
+
+---
+
+*End of MASTER_CONTEXT.md*

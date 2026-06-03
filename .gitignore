@@ -87,3 +87,5 @@ trade_export_*.csv
 
 # ── Temp scripts ─────────────────────────────────────────────────────────────
 git_push.py
+
+patch_*.py

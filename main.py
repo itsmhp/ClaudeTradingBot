@@ -31,6 +31,21 @@ load_dotenv()
 
 _scheduler = AsyncIOScheduler(timezone="UTC")
 
+# Phase 5: Module-level cache for dashboard use
+_regime_cache: dict = {}
+_news_monitor_instance = None
+
+
+def _get_news_monitor():
+    global _news_monitor_instance
+    if _news_monitor_instance is None:
+        try:
+            from core.news_monitor import NewsMonitor
+            _news_monitor_instance = NewsMonitor()
+        except Exception:
+            pass
+    return _news_monitor_instance
+
 
 async def _run_swing_scan() -> None:
     try:
@@ -73,6 +88,29 @@ async def _check_daily_loss() -> None:
         logger.error(f"Daily loss check error: {exc}")
 
 
+async def _refresh_news_calendar() -> None:
+    """Phase 5: keep the ForexFactory calendar cache warm."""
+    nm = _get_news_monitor()
+    if nm:
+        try:
+            events = await nm.fetch_economic_calendar(hours_ahead=24)
+            logger.debug(f"[main] News calendar refreshed: {len(events)} events")
+        except Exception as exc:
+            logger.warning(f"[main] News calendar refresh failed: {exc}")
+
+
+async def _refresh_regime_cache() -> None:
+    """Phase 5: refresh market regime for all pairs every hour."""
+    global _regime_cache
+    try:
+        from core.market_regime import MarketRegimeDetector
+        detector = MarketRegimeDetector()
+        _regime_cache = await detector.get_regime_for_all_pairs()
+        logger.info(f"[main] Regime cache updated for {len(_regime_cache)} pairs")
+    except Exception as exc:
+        logger.warning(f"[main] Regime cache refresh failed: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     logger.info("ClaudeTradingBot starting...")
@@ -98,6 +136,11 @@ async def lifespan(application: FastAPI):
                        id="scalping_scan", replace_existing=True)
     _scheduler.add_job(_check_daily_loss, IntervalTrigger(minutes=5),
                        id="loss_check", replace_existing=True)
+    # Phase 5: news calendar warm-up every 30 min, regime refresh every 60 min
+    _scheduler.add_job(_refresh_news_calendar, IntervalTrigger(minutes=30),
+                       id="news_calendar", replace_existing=True)
+    _scheduler.add_job(_refresh_regime_cache, IntervalTrigger(minutes=60),
+                       id="regime_cache", replace_existing=True)
     _scheduler.start()
     logger.info("Scheduler started. Dashboard: http://localhost:8000")
 
@@ -109,8 +152,8 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(
     title="ClaudeTradingBot API",
-    version="2.0.0",
-    description="AI trading signal system backed by Claude + MT5 (Exness)",
+    version="5.0.0",
+    description="AI trading signal system backed by Claude + MT5 (Exness) — Phase 5",
     lifespan=lifespan,
 )
 
