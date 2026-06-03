@@ -193,7 +193,15 @@ class SignalEngine:
         rules_path = Path(__file__).parent.parent / "strategies" / "rules.json"
         with open(rules_path, encoding="utf-8") as f:
             self._rules = json.load(f)
-        self._watchlist: list[str] = self._rules.get("watchlist", [])
+        # Use explicit active_pairs list; fall back to flattening watchlist dict
+        if "active_pairs" in self._rules:
+            self._watchlist: list[str] = self._rules["active_pairs"]
+        else:
+            wl = self._rules.get("watchlist", {})
+            if isinstance(wl, list):
+                self._watchlist = wl
+            else:
+                self._watchlist = [p for cat in wl.values() for p in cat]
 
     async def process_pair(self, pair: str, timeframe: str, strategy: str) -> dict:
         """Full signal pipeline for one trading pair.

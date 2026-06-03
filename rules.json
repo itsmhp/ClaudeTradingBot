@@ -10,9 +10,11 @@
   "watchlist": {
     "commodities": ["XAUUSD"],
     "crypto": ["BTCUSD"],
-    "forex_majors": ["EURUSD", "GBPUSD", "USDJPY"],
-    "indices": ["NAS100", "US30"]
+    "forex_majors": ["EURUSD", "USDJPY"],
+    "indices": []
   },
+
+  "active_pairs": ["XAUUSD", "EURUSD", "USDJPY", "BTCUSD"],
 
   "instruments": {
     "XAUUSD": {
@@ -55,7 +57,7 @@
     "BTCUSD": {
       "display_name": "Bitcoin vs USD",
       "category": "crypto",
-      "preferred_modes": ["swing"],
+      "preferred_modes": ["scalp", "swing"],
       "preferred_sessions": ["any"],
       "spread_cap_points": 1500,
       "typical_spread_points": 800,
@@ -70,13 +72,13 @@
       "avoid_minutes_before_news": 30,
       "avoid_minutes_after_news": 15,
       "scalp_settings": {
-        "timeframes": ["M15"],
-        "tp_pips": 100.0,
-        "sl_pips": 60.0,
+        "timeframes": ["M15", "M30"],
+        "tp_pips": 150.0,
+        "sl_pips": 100.0,
         "max_open_positions": 1,
         "min_session_overlap": false,
-        "trailing_after_pips": 80.0,
-        "note": "Scalping BTC is risky due to wide spreads. Only in high-momentum moves."
+        "trailing_after_pips": 100.0,
+        "note": "Use M15 for entry confirmation. Wide spread means SL must be >= 100 pips."
       },
       "swing_settings": {
         "timeframes": ["H4", "D1"],
@@ -89,7 +91,7 @@
         "reduce_size_weekends": true,
         "weekend_size_multiplier": 0.5
       },
-      "notes": "BTC trades 24/7 but liquidity drops on weekends. Prefer swing entries on H4/D1. Reduce position size by 50% for weekend holds. Correlates with NAS100 during risk-on."
+      "notes": "BTC trades 24/7. For scalping use M15 only during high-volume hours (08:00-00:00 WIB). Lot size auto-calculated to cap loss at $20 USD regardless of entry/SL distance."
     },
 
     "EURUSD": {

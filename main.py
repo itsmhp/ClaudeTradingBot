@@ -35,6 +35,15 @@ _scheduler = AsyncIOScheduler(timezone="UTC")
 _regime_cache: dict = {}
 _news_monitor_instance = None
 
+# Global app state exposed to routes via `from main import app_state`
+app_state: dict = {
+    "status": "starting",
+    "mode": os.getenv("BOT_MODE", "SIGNAL_ONLY"),
+    "active_pairs": [],
+    "open_positions": 0,
+    "timestamp": None,
+}
+
 
 def _get_news_monitor():
     global _news_monitor_instance
@@ -143,6 +152,12 @@ async def lifespan(application: FastAPI):
                        id="regime_cache", replace_existing=True)
     _scheduler.start()
     logger.info("Scheduler started. Dashboard: http://localhost:8000")
+
+    # Update global state so /status endpoint reflects real values
+    from datetime import datetime, timezone
+    app_state["status"] = "running"
+    app_state["mode"] = bot_mode
+    app_state["timestamp"] = datetime.now(timezone.utc).isoformat()
 
     yield
 

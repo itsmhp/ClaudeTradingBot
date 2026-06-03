@@ -223,6 +223,31 @@ async def manual_execute(req: ExecuteRequest):
     }
 
 
+
+
+class ScanRequest(BaseModel):
+    symbol: str = "XAUUSD"
+    strategy: str = "SWING"  # SWING, SCALPING, or AUTO
+    timeframe: str = "H1"    # H1, H4, D1 for SWING; M5, M15 for SCALPING
+
+
+@router.post("/scan")
+async def manual_scan(req: ScanRequest):
+    """Trigger a manual AI chart scan for a specific pair via Claude."""
+    try:
+        from core.signal_engine import SignalEngine
+        engine = SignalEngine()
+        signal = await engine.process_pair(req.symbol, req.timeframe, req.strategy)
+        if signal:
+            return {
+                "status": "signal_found",
+                "signal": signal.model_dump() if hasattr(signal, "model_dump") else signal,
+            }
+        return {"status": "no_signal", "pair": req.symbol, "strategy": req.strategy}
+    except Exception as exc:
+        logger.error(f"[scan] Error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
 @router.post("/pause")
 async def pause_bot():
     logger.warning("[Routes] Bot paused via API")

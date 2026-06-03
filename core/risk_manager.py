@@ -41,6 +41,7 @@ class RiskManager:
 
     def __init__(self) -> None:
         self.risk_pct: float = float(os.getenv("RISK_PER_TRADE_PCT", "1.0"))
+        self.max_loss_usd: float = float(os.getenv("MAX_LOSS_PER_TRADE_USD", "0"))  # 0 = use risk_pct
         self.default_min_rr: float = float(os.getenv("DEFAULT_RR_RATIO", "2.0"))
         self.max_daily_loss_pct: float = float(os.getenv("MAX_DAILY_LOSS_PCT", "3.0"))
         self.max_total_positions: int = int(os.getenv("MAX_TOTAL_POSITIONS", "5"))
@@ -100,7 +101,11 @@ class RiskManager:
             logger.warning(f"calculate_lot_size: sl_distance=0 for {symbol}")
             return volume_min
 
-        risk_amount = account_equity * (self.risk_pct / 100.0)
+        # Fixed dollar risk takes priority over percentage risk
+        if self.max_loss_usd > 0:
+            risk_amount = self.max_loss_usd
+        else:
+            risk_amount = account_equity * (self.risk_pct / 100.0)
         sl_distance_points = sl_distance / point
         point_value_per_lot = contract_size * point
 
