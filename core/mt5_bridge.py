@@ -309,6 +309,41 @@ class MT5Bridge:
             logger.error(f"cancel_order({ticket}) error: {exc}")
             return {"success": False, "message": str(exc)}
 
+    async def modify_order(
+        self,
+        ticket: int,
+        price: Optional[float] = None,
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None,
+    ) -> dict:
+        """Modify price, SL, or TP of an existing pending order."""
+        orders = await asyncio.to_thread(mt5.orders_get)
+        target = next((o for o in (orders or []) if o.ticket == ticket), None)
+        if target is None:
+            return {"success": False, "message": f"Order {ticket} not found"}
+
+        request = {
+            "action": mt5.TRADE_ACTION_MODIFY,
+            "order": ticket,
+            "price": price if price is not None else target.price_open,
+            "sl": stop_loss if stop_loss is not None else target.sl,
+            "tp": take_profit if take_profit is not None else target.tp,
+        }
+        try:
+            result = await asyncio.to_thread(mt5.order_send, request)
+            if result is None:
+                return {"success": False, "message": "order_send returned None"}
+            success = result.retcode == 10009
+            return {
+                "success": success,
+                "retcode": result.retcode,
+                "message": _RETCODE_MSG.get(result.retcode, str(result.retcode)),
+                "ticket": ticket,
+            }
+        except Exception as exc:
+            logger.error(f"modify_order({ticket}) error: {exc}")
+            return {"success": False, "message": str(exc)}
+
     async def get_daily_deals(self) -> list:
         """Return all deals from today filtered by ClaudeTradingBot magic numbers."""
         magic_numbers = {

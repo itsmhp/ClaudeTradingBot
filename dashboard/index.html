@@ -104,6 +104,8 @@
   <div class="nav-item" onclick="showSection('settings',this)">⚙️ Settings</div>
   <div class="nav-item" onclick="showSection('backtesting',this)">🔬 Backtesting</div>
   <div class="nav-item" onclick="showSection('accounts',this)">🏦 Accounts</div>
+  <div class="nav-item" onclick="showSection('orders',this)">📋 Orders</div>
+  <div class="nav-item" onclick="showSection('logs',this)">📝 Logs</div>
   <div class="nav-item" onclick="showSection('ai-intel',this)">🧠 AI Intelligence</div>
   <div class="sidebar-footer" id="ws-footer">WS: —</div>
 </nav>
@@ -292,6 +294,48 @@
     <button class="btn btn-teal btn-sm" onclick="loadAIIntel();">&#128260; Refresh AI Data</button>
   </section>
 
+  <!-- 9. Orders — Pending Order Management -->
+  <section class="section" id="section-orders">
+    <h2>📋 Pending Orders</h2>
+    <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+      <button class="btn btn-teal" onclick="loadOrders()">↺ Refresh</button>
+      <button class="btn btn-danger" id="cancel-all-btn" onclick="cancelAllOrders()">✕ Cancel All</button>
+    </div>
+    <div class="table-wrap"><table id="orders-table">
+      <thead><tr>
+        <th>Ticket</th><th>Symbol</th><th>Type</th><th>Volume</th>
+        <th>Entry Price</th><th>SL</th><th>TP</th><th>Time</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="orders-body">
+        <tr><td colspan="9" style="text-align:center;color:var(--muted)">Loading…</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- 10. Logs — Scan History -->
+  <section class="section" id="section-logs">
+    <h2>📝 Scan Logs</h2>
+    <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-teal" onclick="loadLogs()">↺ Refresh</button>
+      <label style="font-size:.82rem;color:var(--muted);">Show
+        <select id="log-limit" onchange="loadLogs()" style="background:var(--surface2);color:var(--text);border:1px solid var(--surface2);border-radius:4px;padding:.2rem .5rem;margin-left:.4rem;">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="200">200</option>
+        </select>
+        entries
+      </label>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Time</th><th>Pair</th><th>TF</th><th>Strategy</th><th>Result</th><th>Summary</th>
+      </tr></thead>
+      <tbody id="logs-body">
+        <tr><td colspan="6" style="text-align:center;color:var(--muted)">Loading…</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
 </main>
 
 <!-- ══ ADD ACCOUNT MODAL ══ -->
@@ -326,11 +370,46 @@
   </div>
 </div>
 
+<!-- ══ MODIFY ORDER MODAL ══ -->
+<div class="modal-overlay" id="modify-order-modal">
+  <div class="modal" style="width:400px;">
+    <h3>✏️ Modify Pending Order</h3>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem;" id="modify-ticket-label">Ticket: —</p>
+    <div class="form-grid">
+      <div class="form-field full"><label>New Entry Price (leave blank to keep)
+        <input id="mod-price" type="number" step="any" placeholder="Optional"/>
+      </label></div>
+      <div class="form-field"><label>New Stop Loss
+        <input id="mod-sl" type="number" step="any" placeholder="Optional"/>
+      </label></div>
+      <div class="form-field"><label>New Take Profit
+        <input id="mod-tp" type="number" step="any" placeholder="Optional"/>
+      </label></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModifyModal()" style="background:var(--surface2)">Cancel</button>
+      <button class="btn btn-primary" onclick="submitModifyOrder()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOG DETAIL MODAL ══ -->
+<div class="modal-overlay" id="log-detail-modal">
+  <div class="modal" style="width:640px;max-height:85vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h3 id="log-modal-title">Scan Detail</h3>
+      <button onclick="closeLogModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">✕</button>
+    </div>
+    <div id="log-modal-body" style="font-size:.85rem;line-height:1.6;"></div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════
 const API = '';
 let _pnlChart=null,_perfChart=null,_btEquityChart=null,_btDistChart=null,_mcFanChart=null;
 let _lastBtStats=null,_btJobId=null,_btPollTimer=null;
+let _modifyTicket=null;
 
 function $(id){return document.getElementById(id);}
 function showSection(name,el){
@@ -342,6 +421,8 @@ function showSection(name,el){
   if(name==='signals')     loadSignals();
   if(name==='trades')      loadTrades();
   if(name==='accounts')    loadAccounts();
+  if(name==='orders')      loadOrders();
+  if(name==='logs')        loadLogs();
 }
 async function api(path,opts={}){
   try{const r=await fetch(API+path,opts);return await r.json();}
@@ -673,6 +754,189 @@ async function loadAIIntel() {
     if (box) box.textContent = pc.context || 'No performance data yet (need executed trades).';
   } catch(e) { console.warn('Perf context failed', e); }
 }
+
+// ══════════════════════════════════════════════════════════
+// Orders Management
+// ══════════════════════════════════════════════════════════
+async function loadOrders() {
+  const tb = $('orders-body');
+  tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted)">Loading…</td></tr>';
+  const d = await api('/orders');
+  if (!d || !d.orders || d.orders.length === 0) {
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No pending orders</td></tr>';
+    return;
+  }
+  const typeColor = {BUY_LIMIT:'badge-green',SELL_LIMIT:'badge-red',BUY_STOP:'badge-blue',SELL_STOP:'badge-amber'};
+  tb.innerHTML = d.orders.map(o => `
+    <tr>
+      <td><code style="color:var(--accent2)">${o.ticket}</code></td>
+      <td><strong>${o.symbol}</strong></td>
+      <td><span class="badge ${typeColor[o.type]||'badge-gray'}">${o.type}</span></td>
+      <td>${fmtNum(o.volume,2)}</td>
+      <td>${fmtNum(o.price,5)}</td>
+      <td>${o.sl ? fmtNum(o.sl,5) : '—'}</td>
+      <td>${o.tp ? fmtNum(o.tp,5) : '—'}</td>
+      <td style="font-size:.75rem;color:var(--muted)">${o.time_setup ? o.time_setup.replace('T',' ').split('.')[0] : '—'}</td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="openModifyModal(${o.ticket},'${o.symbol}',${o.price||0},${o.sl||0},${o.tp||0})">✏️ Edit</button>
+        <button class="btn btn-sm btn-danger" style="margin-left:.4rem" onclick="cancelOrder(${o.ticket})">✕ Cancel</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openModifyModal(ticket, symbol, price, sl, tp) {
+  _modifyTicket = ticket;
+  $('modify-ticket-label').textContent = `Ticket #${ticket} — ${symbol}`;
+  $('mod-price').value = price || '';
+  $('mod-sl').value = sl || '';
+  $('mod-tp').value = tp || '';
+  $('modify-order-modal').classList.add('open');
+}
+function closeModifyModal() {
+  $('modify-order-modal').classList.remove('open');
+  _modifyTicket = null;
+}
+async function submitModifyOrder() {
+  if (!_modifyTicket) return;
+  const body = {};
+  if ($('mod-price').value) body.price = parseFloat($('mod-price').value);
+  if ($('mod-sl').value) body.stop_loss = parseFloat($('mod-sl').value);
+  if ($('mod-tp').value) body.take_profit = parseFloat($('mod-tp').value);
+  const r = await api(`/orders/${_modifyTicket}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  if (r && r.success) {
+    alert(`Order #${_modifyTicket} modified successfully`);
+    closeModifyModal();
+    loadOrders();
+  } else {
+    alert(`Failed: ${r ? r.message || r.detail : 'Network error'}`);
+  }
+}
+async function cancelOrder(ticket) {
+  if (!confirm(`Cancel order #${ticket}?`)) return;
+  const r = await api(`/orders/${ticket}`, {method:'DELETE'});
+  if (r && r.success) {
+    loadOrders();
+  } else {
+    alert(`Failed: ${r ? r.message || r.detail : 'Network error'}`);
+  }
+}
+async function cancelAllOrders() {
+  if (!confirm('Cancel ALL pending orders? This cannot be undone.')) return;
+  const r = await api('/orders', {method:'DELETE'});
+  if (r) {
+    alert(`Cancelled ${r.cancelled?.length ?? 0} orders. Failed: ${r.failed?.length ?? 0}`);
+    loadOrders();
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Scan Logs
+// ══════════════════════════════════════════════════════════
+let _logsData = [];
+
+async function loadLogs() {
+  const tb = $('logs-body');
+  const limit = $('log-limit') ? parseInt($('log-limit').value) : 100;
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Loading…</td></tr>';
+  const d = await api(`/logs?limit=${limit}`);
+  if (!d || !d.logs || d.logs.length === 0) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No scan logs yet. Wait for next scan cycle.</td></tr>';
+    return;
+  }
+  _logsData = d.logs;
+  const resultClass = {
+    NO_TRADE:'badge-gray', SIGNAL:'badge-blue', EXECUTED:'badge-green',
+    REJECTED:'badge-red', SKIPPED:'badge-amber', ERROR:'badge-red', PENDING:'badge-gray'
+  };
+  tb.innerHTML = d.logs.map((log, i) => {
+    const ts = log.timestamp ? log.timestamp.replace('T',' ').split('.')[0] : '—';
+    const brief = (log.reasoning || '').substring(0, 80) + ((log.reasoning||'').length > 80 ? '…' : '');
+    const cls = resultClass[log.result] || 'badge-gray';
+    return `<tr style="cursor:pointer;" onclick="openLogModal(${i})" title="Click for full analysis">
+      <td style="font-size:.75rem;color:var(--muted)">${ts}</td>
+      <td><strong>${log.pair || '—'}</strong></td>
+      <td>${log.timeframe || '—'}</td>
+      <td>${log.strategy || '—'}</td>
+      <td><span class="badge ${cls}">${log.result}</span></td>
+      <td style="color:var(--muted);font-size:.78rem">${brief || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openLogModal(idx) {
+  const log = _logsData[idx];
+  if (!log) return;
+  const ts = log.timestamp ? log.timestamp.replace('T',' ').split('.')[0] : '—';
+  $('log-modal-title').textContent = `${log.pair} / ${log.timeframe} — ${log.result}`;
+
+  let indHtml = '';
+  if (log.indicators && Object.keys(log.indicators).length > 0) {
+    const ind = log.indicators;
+    indHtml = `<div style="background:var(--surface2);border-radius:8px;padding:1rem;margin-bottom:1rem;">
+      <div style="font-weight:600;color:var(--accent2);margin-bottom:.5rem;">📊 Indicators</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;font-size:.82rem;">
+        ${ind.rsi != null ? `<div><span style="color:var(--muted)">RSI:</span> <strong>${fmtNum(ind.rsi,2)}</strong></div>` : ''}
+        ${ind.ema_50 != null ? `<div><span style="color:var(--muted)">EMA50:</span> <strong>${fmtNum(ind.ema_50,3)}</strong></div>` : ''}
+        ${ind.ema_200 != null ? `<div><span style="color:var(--muted)">EMA200:</span> <strong>${fmtNum(ind.ema_200,3)}</strong></div>` : ''}
+        ${ind.macd_line != null ? `<div><span style="color:var(--muted)">MACD:</span> <strong>${fmtNum(ind.macd_line,5)}</strong></div>` : ''}
+        ${ind.signal_line != null ? `<div><span style="color:var(--muted)">Signal:</span> <strong>${fmtNum(ind.signal_line,5)}</strong></div>` : ''}
+        ${ind.histogram != null ? `<div><span style="color:var(--muted)">Hist:</span> <strong style="color:${ind.histogram>=0?'var(--green)':'var(--red)'}">${fmtNum(ind.histogram,5)}</strong></div>` : ''}
+        ${ind.structure ? `<div style="grid-column:1/-1"><span style="color:var(--muted)">Structure:</span> <strong>${ind.structure}</strong></div>` : ''}
+        ${ind.support_levels && ind.support_levels.length ? `<div style="grid-column:1/-1"><span style="color:var(--muted)">Support:</span> ${ind.support_levels.map(v=>fmtNum(v,3)).join(', ')}</div>` : ''}
+        ${ind.resistance_levels && ind.resistance_levels.length ? `<div style="grid-column:1/-1"><span style="color:var(--muted)">Resistance:</span> ${ind.resistance_levels.map(v=>fmtNum(v,3)).join(', ')}</div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  let sigHtml = '';
+  if (log.signal) {
+    const s = log.signal;
+    const dirColor = s.direction === 'BUY' ? 'var(--green)' : 'var(--red)';
+    sigHtml = `<div style="background:var(--surface2);border-radius:8px;padding:1rem;margin-bottom:1rem;">
+      <div style="font-weight:600;color:var(--accent);margin-bottom:.5rem;">🎯 Signal</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem;font-size:.82rem;">
+        <div><span style="color:var(--muted)">Direction:</span> <strong style="color:${dirColor}">${s.direction}</strong></div>
+        <div><span style="color:var(--muted)">Type:</span> ${s.order_type || '—'}</div>
+        <div><span style="color:var(--muted)">Entry:</span> <strong>${fmtNum(s.entry_price,5)}</strong></div>
+        <div><span style="color:var(--muted)">SL:</span> ${fmtNum(s.stop_loss,5)}</div>
+        <div><span style="color:var(--muted)">TP1:</span> ${fmtNum(s.take_profit_1,5)}</div>
+        <div><span style="color:var(--muted)">TP2:</span> ${s.take_profit_2 ? fmtNum(s.take_profit_2,5) : '—'}</div>
+        <div><span style="color:var(--muted)">RR:</span> ${fmtNum(s.risk_reward_ratio,2)}</div>
+        <div><span style="color:var(--muted)">Confidence:</span> ${s.confidence || '—'}%</div>
+      </div>
+    </div>`;
+  }
+
+  const reasonHtml = `<div style="background:var(--surface2);border-radius:8px;padding:1rem;">
+    <div style="font-weight:600;color:var(--warn);margin-bottom:.5rem;">💬 Analysis</div>
+    <p style="color:var(--text);line-height:1.7;font-size:.85rem;white-space:pre-wrap;">${log.reasoning || 'No reasoning available.'}</p>
+  </div>`;
+
+  $('log-modal-body').innerHTML = `
+    <div style="display:flex;gap:1rem;margin-bottom:1rem;font-size:.82rem;flex-wrap:wrap;">
+      <span style="color:var(--muted)">⏱ ${ts}</span>
+      <span style="color:var(--muted)">ID: <code>${log.id || '—'}</code></span>
+      <span style="color:var(--muted)">Strategy: ${log.strategy}</span>
+    </div>
+    ${indHtml}${sigHtml}${reasonHtml}`;
+  $('log-detail-modal').classList.add('open');
+}
+
+function closeLogModal() {
+  $('log-detail-modal').classList.remove('open');
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === this) {
+      this.classList.remove('open');
+      _modifyTicket = null;
+    }
+  });
+});
 
 // Init
 // ══════════════════════════════════════════════════════════

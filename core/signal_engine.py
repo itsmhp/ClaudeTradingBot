@@ -17,6 +17,7 @@ import json
 import math
 import os
 import uuid
+from collections import deque
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -27,6 +28,16 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 if TYPE_CHECKING:
     pass
+
+# ─── Global scan log (in-memory, max 500 entries) ─────────────
+_scan_log: deque[dict] = deque(maxlen=500)
+
+
+def get_scan_logs(limit: int = 100) -> list[dict]:
+    """Return the most recent scan log entries."""
+    entries = list(_scan_log)
+    entries.reverse()  # newest first
+    return entries[:limit]
 
 
 # ─── WebSocket broadcast helper ───────────────────────────────
@@ -294,6 +305,17 @@ class SignalEngine:
         Phase 2: broadcasts WebSocket events at each key stage.
         Phase 5: news blackout check, regime-based strategy selection, consensus engine.
         """
+        _log_entry: dict = {
+            "id": str(uuid.uuid4())[:8],
+            "timestamp": datetime.utcnow().isoformat(),
+            "pair": pair,
+            "timeframe": timeframe,
+            "strategy": strategy,
+            "result": "PENDING",
+            "reasoning": "",
+            "indicators": {},
+            "signal": None,
+        }
         try:
             # Step 0 — Phase 5: News blackout check
             news_monitor = self._get_news_monitor()
@@ -307,6 +329,9 @@ class SignalEngine:
                             await TelegramNotifier().send_news_blackout_alert(pair, event_name)
                         except Exception:
                             pass
+                        _log_entry["result"] = "SKIPPED"
+                        _log_entry["reasoning"] = f"News blackout: {event_name}"
+                        _scan_log.append(_log_entry)
                         return {"result": "SKIPPED", "pair": pair, "reason": f"News blackout: {event_name}"}
                 except Exception as exc:
                     logger.warning(f"[SignalEngine] News check failed for {pair}: {exc}")
@@ -334,6 +359,11 @@ class SignalEngine:
 
             # Step 1b — Fetch OHLCV candles and compute indicators
             indicator_data = await self._compute_indicators(pair, timeframe)
+            _log_entry["indicators"] = {
+                k: v for k, v in indicator_data.items()
+                if k in ("rsi", "ema_50", "ema_200", "macd_line", "signal_line", "histogram", "structure",
+                          "support_levels", "resistance_levels")
+            }
 
             # Step 2 — Package chart_data
             chart_data: dict = {
@@ -379,6 +409,9 @@ class SignalEngine:
             # Step 4 — Handle NO_TRADE
             if isinstance(result, NoTradeSignal):
                 logger.info(f"NO_TRADE {pair}/{timeframe}: {result.reasoning}")
+                _log_entry["result"] = "NO_TRADE"
+                _log_entry["reasoning"] = result.reasoning
+                _scan_log.append(_log_entry)
                 return {"result": "NO_TRADE", "pair": pair, "reasoning": result.reasoning}
 
             signal: TradeSignal = result  # type: ignore[assignment]
@@ -391,6 +424,10 @@ class SignalEngine:
             if not valid:
                 logger.warning(f"Signal REJECTED {pair}: {reason}")
                 await _ws_broadcast("signal_rejected", {"pair": pair, "reason": reason})
+                _log_entry["result"] = "REJECTED"
+                _log_entry["reasoning"] = reason
+                _log_entry["signal"] = signal.model_dump(mode="json")
+                _scan_log.append(_log_entry)
                 return {"result": "REJECTED", "pair": pair, "reason": reason}
 
             # Step 7 — Check position limits
@@ -399,6 +436,10 @@ class SignalEngine:
             )
             if not can_trade:
                 logger.info(f"Position limit {pair}: {pos_reason}")
+                _log_entry["result"] = "SKIPPED"
+                _log_entry["reasoning"] = pos_reason
+                _log_entry["signal"] = signal.model_dump(mode="json")
+                _scan_log.append(_log_entry)
                 return {"result": "SKIPPED", "pair": pair, "reason": pos_reason}
 
             # Step 8 — Calculate lot size (Phase 5: reduce if poor performer)
@@ -462,7 +503,7 @@ class SignalEngine:
                 logger.warning(f"Telegram failed: {notify_err}")
 
             self._last_scan_at = datetime.utcnow()
-            return {
+            result_dict = {
                 "result": outcome,
                 "signal": signal.model_dump(),
                 "lot_size": lot_size,
@@ -470,9 +511,17 @@ class SignalEngine:
                 "regime": regime_info,
                 "consensus": consensus_info,
             }
+            _log_entry["result"] = outcome
+            _log_entry["reasoning"] = signal.reasoning or ""
+            _log_entry["signal"] = signal.model_dump(mode="json")
+            _scan_log.append(_log_entry)
+            return result_dict
 
         except Exception as e:
             logger.exception(f"Error processing {pair}: {e}")
+            _log_entry["result"] = "ERROR"
+            _log_entry["reasoning"] = str(e)
+            _scan_log.append(_log_entry)
             return {"result": "ERROR", "pair": pair, "error": str(e)}
 
     async def scan_all_pairs(self, strategy: str) -> list[dict]:

@@ -9,12 +9,12 @@
 
   "watchlist": {
     "commodities": ["XAUUSDm"],
-    "crypto": ["BTCUSDm"],
+    "crypto": [],
     "forex_majors": ["EURUSDm", "USDJPYm"],
     "indices": []
   },
 
-  "active_pairs": ["XAUUSDm", "EURUSDm", "USDJPYm", "BTCUSDm"],
+  "active_pairs": ["XAUUSDm", "EURUSDm", "USDJPYm"],
 
   "instruments": {
     "XAUUSDm": {
@@ -131,7 +131,7 @@
       "notes": "Tightest spread pair on Exness. Best for scalping during London/NY overlap (13:00-16:00 UTC). Avoid Asian session scalps. Heavily affected by ECB and Fed decisions."
     },
 
-    "GBPUSD": {
+    "GBPUSDm": {
       "display_name": "British Pound vs USD",
       "category": "forex_majors",
       "preferred_modes": ["scalp", "swing"],

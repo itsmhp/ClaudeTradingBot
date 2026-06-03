@@ -590,6 +590,115 @@ async def ai_consensus_stats():
 
 
 # ════════════════════════════════════════════════════════════════
+# PHASE 6 — Pending Order Management
+# ════════════════════════════════════════════════════════════════
+
+class ModifyOrderRequest(BaseModel):
+    price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+
+
+def _get_mt5_bridge():
+    try:
+        from core.mt5_bridge import MT5Bridge
+        return MT5Bridge()
+    except Exception as exc:
+        logger.warning(f"[Routes] MT5Bridge unavailable: {exc}")
+        return None
+
+
+@router.get("/orders")
+async def get_pending_orders(symbol: Optional[str] = None):
+    """List all pending orders (BUY_LIMIT, SELL_LIMIT, BUY_STOP, SELL_STOP) in MT5."""
+    bridge = _get_mt5_bridge()
+    if bridge is None:
+        raise HTTPException(503, "MT5Bridge not available")
+    orders = await bridge.get_pending_orders(symbol=symbol)
+    result = []
+    for o in orders:
+        result.append({
+            "ticket": o.ticket,
+            "symbol": o.symbol,
+            "type": _order_type_name(o.type),
+            "volume": o.volume_current,
+            "price": o.price_open,
+            "sl": o.sl,
+            "tp": o.tp,
+            "comment": o.comment,
+            "magic": o.magic,
+            "time_setup": datetime.utcfromtimestamp(o.time_setup).isoformat() if o.time_setup else None,
+        })
+    return {"orders": result, "count": len(result)}
+
+
+@router.put("/orders/{ticket}")
+async def modify_pending_order(ticket: int, req: ModifyOrderRequest):
+    """Modify price, SL, or TP of a pending order by ticket."""
+    bridge = _get_mt5_bridge()
+    if bridge is None:
+        raise HTTPException(503, "MT5Bridge not available")
+    result = await bridge.modify_order(
+        ticket,
+        price=req.price,
+        stop_loss=req.stop_loss,
+        take_profit=req.take_profit,
+    )
+    if not result.get("success"):
+        raise HTTPException(400, result.get("message", "Modify failed"))
+    return result
+
+
+@router.delete("/orders/{ticket}")
+async def cancel_pending_order(ticket: int):
+    """Cancel a specific pending order by ticket."""
+    bridge = _get_mt5_bridge()
+    if bridge is None:
+        raise HTTPException(503, "MT5Bridge not available")
+    result = await bridge.cancel_order(ticket)
+    if not result.get("success"):
+        raise HTTPException(400, result.get("message", "Cancel failed"))
+    return result
+
+
+@router.delete("/orders")
+async def cancel_all_pending_orders():
+    """Cancel ALL pending orders placed by ClaudeTradingBot (magic number filter)."""
+    bridge = _get_mt5_bridge()
+    if bridge is None:
+        raise HTTPException(503, "MT5Bridge not available")
+    orders = await bridge.get_pending_orders()
+    cancelled, failed = [], []
+    for o in orders:
+        res = await bridge.cancel_order(o.ticket)
+        if res.get("success"):
+            cancelled.append(o.ticket)
+        else:
+            failed.append({"ticket": o.ticket, "error": res.get("message")})
+    return {"cancelled": cancelled, "failed": failed, "total": len(orders)}
+
+
+def _order_type_name(type_int: int) -> str:
+    names = {2: "BUY_LIMIT", 3: "SELL_LIMIT", 4: "BUY_STOP", 5: "SELL_STOP"}
+    return names.get(type_int, f"TYPE_{type_int}")
+
+
+# ════════════════════════════════════════════════════════════════
+# PHASE 6 — Scan Logs
+# ════════════════════════════════════════════════════════════════
+
+@router.get("/logs")
+async def get_scan_logs(limit: int = 100):
+    """Return the most recent scan log entries (in-memory, newest first)."""
+    try:
+        from core.signal_engine import get_scan_logs
+        logs = get_scan_logs(limit=limit)
+        return {"logs": logs, "count": len(logs)}
+    except Exception as exc:
+        return {"logs": [], "count": 0, "error": str(exc)}
+
+
+# ════════════════════════════════════════════════════════════════
 # DEBUG — MT5 diagnostics
 # ════════════════════════════════════════════════════════════════
 
